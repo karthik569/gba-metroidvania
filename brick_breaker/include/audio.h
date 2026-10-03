@@ -16,6 +16,8 @@ void sfx_powerup_drop(void);
 void sfx_powerup_get(void);
 void sfx_life_lost(void);
 void sfx_stage_clear(void);
+void sfx_hazard_spawn(void);
+void sfx_hazard_hit(void);
 
 #ifdef __cplusplus
 }

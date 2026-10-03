@@ -63,3 +63,20 @@ void sfx_stage_clear(void) {
     REG_SOUND1CNT_H = 0xF380;       // High duty, sustained
     REG_SOUND1CNT_X = 0x86C0;       // Trigger
 }
+
+void sfx_hazard_spawn(void) {
+    // Channel 1: Sci-fi hazard alert warble (upward sweep)
+    REG_SOUND1CNT_L = 0x0021;       // Sweep time 2, upward (+), shift 1
+    REG_SOUND1CNT_H = 0xC240;       // Duty 25%, envelope decay 2, initial vol 12
+    REG_SOUND1CNT_X = 0x8480;       // Frequency ~1150Hz, trigger
+}
+
+void sfx_hazard_hit(void) {
+    // Channel 4: White noise vaporize burst
+    REG_SOUND4CNT_L = 0xE100;       // Initial vol 14, decay 1
+    REG_SOUND4CNT_H = 0x8032;       // High/mid freq noise, 7-stage, trigger
+    // Channel 2: Crunch body
+    REG_SOUND2CNT_L = 0xD180;       // Duty 50%, vol 13, decay 1
+    REG_SOUND2CNT_H = 0x8400;       // Mid freq punch, trigger
+}
+

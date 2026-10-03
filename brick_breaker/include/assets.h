@@ -64,6 +64,17 @@
 #define SPRITE_TILE_BADGE_MULTI    38
 #define SPRITE_TILE_BADGE_CATCH    42
 
+// Floating Hazards (8x8 = 1 tile each)
+#define SPRITE_TILE_HAZARD_1       46
+#define SPRITE_TILE_HAZARD_2       47
+
+// Paddle Thrusters (8x8 = 1 tile each)
+#define SPRITE_TILE_THRUSTER_L     48
+#define SPRITE_TILE_THRUSTER_R     49
+
+// Shatter Debris Particles (8x8 = 1 tile)
+#define SPRITE_TILE_PARTICLE       50
+
 #ifdef __cplusplus
 extern "C" {
 #endif

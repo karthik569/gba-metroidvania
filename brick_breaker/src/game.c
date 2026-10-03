@@ -22,6 +22,43 @@ static Laser s_lasers[MAX_LASERS];
 static Brick s_bricks[BRICK_ROWS][BRICK_COLS];
 static u16 s_destructible_remaining = 0;
 
+static Hazard s_hazards[MAX_HAZARDS];
+static Particle s_particles[MAX_PARTICLES];
+static u16 s_hazard_spawn_timer = 0;
+static u8 s_shake_timer = 0;
+static u8 s_shake_mag = 0;
+
+// 32-entry sine table for smooth horizontal hazard drone oscillation (amplitude ~16 px)
+static const s8 s_sin32[32] = {
+     0,  3,  6,  9, 11, 13, 15, 16,
+    16, 15, 13, 11,  9,  6,  3,  0,
+     0, -3, -6, -9,-11,-13,-15,-16,
+   -16,-15,-13,-11, -9, -6, -3,  0
+};
+
+static void trigger_screen_shake(u8 mag, u8 duration) {
+    s_shake_mag = mag;
+    s_shake_timer = duration;
+}
+
+static void spawn_particles(s16 x, s16 y, u8 pal) {
+    static const s16 vxs[4] = {-192, 192, -128, 128};
+    static const s16 vys[4] = {-256, -256, -160, -192};
+    u8 spawned = 0;
+    for (int i = 0; i < MAX_PARTICLES && spawned < 4; i++) {
+        if (!s_particles[i].active) {
+            s_particles[i].active = true;
+            s_particles[i].x = INT_TO_FP(x + 4 + (spawned * 2));
+            s_particles[i].y = INT_TO_FP(y + 2);
+            s_particles[i].vx = vxs[spawned];
+            s_particles[i].vy = vys[spawned];
+            s_particles[i].life = 18;
+            s_particles[i].pal = pal;
+            spawned++;
+        }
+    }
+}
+
 // Simple PRNG for power-up drops
 static u32 s_rng_seed = 0x12345678;
 static u32 rng_next(void) {
@@ -300,7 +337,15 @@ static void reset_paddle_and_ball(void) {
 
     for (int i = 0; i < MAX_CAPSULES; i++) s_capsules[i].active = false;
     for (int i = 0; i < MAX_LASERS; i++) s_lasers[i].active = false;
+    for (int i = 0; i < MAX_HAZARDS; i++) s_hazards[i].active = false;
+    for (int i = 0; i < MAX_PARTICLES; i++) s_particles[i].active = false;
+    s_hazard_spawn_timer = 300;
+    s_shake_timer = 0;
+    s_shake_mag = 0;
+    REG_BG0HOFS = 0;
+    REG_BG0VOFS = 0;
 }
+
 
 void game_load_stage(u8 stage_num) {
     if (stage_num < 1) stage_num = 1;
@@ -565,6 +610,43 @@ static void update_playing(void) {
             }
         }
 
+        // Hazard collision (deflect ball, destroy hazard, award 100 pts)
+        for (int h = 0; h < MAX_HAZARDS; h++) {
+            if (!s_hazards[h].active) continue;
+            s16 hx = FP_TO_INT(s_hazards[h].x);
+            s16 hy = FP_TO_INT(s_hazards[h].y);
+            s16 cur_bx = FP_TO_INT(s_balls[b].x);
+            s16 cur_by = FP_TO_INT(s_balls[b].y);
+
+            if (cur_bx + 7 >= hx && cur_bx <= hx + 7 && cur_by + 7 >= hy && cur_by <= hy + 7) {
+                s_hazards[h].active = false;
+                sfx_hazard_hit();
+                spawn_particles(hx, hy, 0);
+                trigger_screen_shake(1, 6);
+                s_score += 100;
+                if (s_score > s_high_score) {
+                    s_high_score = s_score;
+                    save_set_high_score(s_high_score);
+                }
+                update_hud_text();
+
+                // Deflect ball away from hazard preserving speed
+                s16 diff_x = (cur_bx + 4) - (hx + 4);
+                s16 diff_y = (cur_by + 4) - (hy + 4);
+                s16 abs_x = (diff_x >= 0) ? diff_x : -diff_x;
+                s16 abs_y = (diff_y >= 0) ? diff_y : -diff_y;
+                if (abs_x > abs_y) {
+                    if (diff_x < 0 && s_balls[b].vx > 0) s_balls[b].vx = -s_balls[b].vx;
+                    else if (diff_x > 0 && s_balls[b].vx < 0) s_balls[b].vx = -s_balls[b].vx;
+                } else {
+                    if (diff_y < 0 && s_balls[b].vy > 0) s_balls[b].vy = -s_balls[b].vy;
+                    else if (diff_y > 0 && s_balls[b].vy < 0) s_balls[b].vy = -s_balls[b].vy;
+                }
+                sfx_bounce();
+                break;
+            }
+        }
+
         // Brick collision (with penetration push-out & direction check)
         s16 cx = bx + 4;
         s16 cy = by + 4;
@@ -604,18 +686,23 @@ static void update_playing(void) {
 
                     if (type == BRK_GOLD) {
                         sfx_brick_hard();
+                        trigger_screen_shake(1, 4);
                     } else if (type == BRK_SILVER) {
                         s_bricks[row][col].hp--;
                         if (s_bricks[row][col].hp == 1) {
                             render_brick_tiles(col, row, BRK_SILVER, 1);
                             sfx_brick_hard();
                             s_score += 50;
+                            trigger_screen_shake(1, 4);
+                            spawn_particles(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8, BRK_SILVER);
                         } else {
                             s_bricks[row][col].type = BRK_EMPTY;
                             render_brick_tiles(col, row, BRK_EMPTY, 0);
                             s_destructible_remaining--;
                             s_score += 500;
                             sfx_brick_hit();
+                            trigger_screen_shake(1, 6);
+                            spawn_particles(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8, BRK_SILVER);
                             if (rng_next() % 100 < 30) spawn_capsule(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8);
                         }
                     } else {
@@ -626,6 +713,7 @@ static void update_playing(void) {
                         render_brick_tiles(col, row, BRK_EMPTY, 0);
                         s_destructible_remaining--;
                         sfx_brick_hit();
+                        spawn_particles(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8, type);
                         if (rng_next() % 100 < 22) spawn_capsule(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8);
                     }
 
@@ -643,6 +731,8 @@ static void update_playing(void) {
     if (active_balls_count == 0) {
         s_lives--;
         sfx_life_lost();
+        trigger_screen_shake(3, 16);
+        spawn_particles(px + s_paddle.width / 2, py, 0);
         if (s_lives > 0) {
             reset_paddle_and_ball();
         } else {
@@ -651,6 +741,7 @@ static void update_playing(void) {
             return;
         }
     }
+
 
     // 3. Laser Bolt Updates
     for (int i = 0; i < MAX_LASERS; i++) {
@@ -663,6 +754,28 @@ static void update_playing(void) {
             s_lasers[i].active = false;
             continue;
         }
+
+        // Laser vs Hazards
+        for (int h = 0; h < MAX_HAZARDS; h++) {
+            if (!s_hazards[h].active) continue;
+            s16 hx = FP_TO_INT(s_hazards[h].x);
+            s16 hy = FP_TO_INT(s_hazards[h].y);
+            if (lx + 6 >= hx && lx <= hx + 7 && ly + 7 >= hy && ly <= hy + 7) {
+                s_lasers[i].active = false;
+                s_hazards[h].active = false;
+                sfx_hazard_hit();
+                spawn_particles(hx, hy, 0);
+                trigger_screen_shake(1, 6);
+                s_score += 100;
+                if (s_score > s_high_score) {
+                    s_high_score = s_score;
+                    save_set_high_score(s_high_score);
+                }
+                update_hud_text();
+                break;
+            }
+        }
+        if (!s_lasers[i].active) continue;
 
         // Laser vs Bricks
         if (ly >= BRICK_START_Y && ly < BRICK_START_Y + (BRICK_ROWS * BRICK_HEIGHT) &&
@@ -680,8 +793,10 @@ static void update_playing(void) {
                         s_destructible_remaining--;
                         s_score += 100;
                         sfx_brick_hit();
+                        spawn_particles(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8, type);
                     } else {
                         sfx_brick_hard();
+                        trigger_screen_shake(1, 4);
                     }
                     update_hud_text();
                 }
@@ -708,6 +823,76 @@ static void update_playing(void) {
         }
     }
 
+    // 5. Floating Hazards Update
+    s_hazard_spawn_timer++;
+    if (s_hazard_spawn_timer >= 900) {
+        s_hazard_spawn_timer = 0;
+        for (int i = 0; i < MAX_HAZARDS; i++) {
+            if (!s_hazards[i].active) {
+                s_hazards[i].active = true;
+                s16 start_x = 32 + (rng_next() % 118);
+                s_hazards[i].base_x = INT_TO_FP(start_x);
+                s_hazards[i].x = s_hazards[i].base_x;
+                s_hazards[i].y = INT_TO_FP(PLAYFIELD_Y_MIN + 2);
+                s_hazards[i].vy = 64; // 0.25 px/frame descent
+                s_hazards[i].wave_timer = rng_next() % 256;
+                s_hazards[i].anim_frame = 0;
+                sfx_hazard_spawn();
+                break;
+            }
+        }
+    }
+
+    for (int i = 0; i < MAX_HAZARDS; i++) {
+        if (!s_hazards[i].active) continue;
+        s_hazards[i].wave_timer++;
+        s_hazards[i].anim_frame = (s_hazards[i].wave_timer >> 4) & 1;
+
+        u8 angle = (s_hazards[i].wave_timer >> 2) & 31;
+        s16 offset_x = s_sin32[angle];
+        s_hazards[i].x = s_hazards[i].base_x + INT_TO_FP(offset_x);
+        s_hazards[i].y += s_hazards[i].vy;
+
+        s16 hx = FP_TO_INT(s_hazards[i].x);
+        s16 hy = FP_TO_INT(s_hazards[i].y);
+
+        if (hy >= PLAYFIELD_Y_MAX) {
+            s_hazards[i].active = false;
+            continue;
+        }
+
+        // Hazard vs Paddle collision (costs 1 life)
+        if (hy + 7 >= py && hy <= py + 8 && hx + 7 >= px && hx <= px + s_paddle.width) {
+            s_hazards[i].active = false;
+            s_lives--;
+            sfx_hazard_hit();
+            sfx_life_lost();
+            spawn_particles(px + s_paddle.width / 2, py, 0);
+            trigger_screen_shake(3, 20);
+            if (s_lives > 0) {
+                reset_paddle_and_ball();
+            } else {
+                s_state = STATE_GAME_OVER;
+                s_state_timer = 0;
+            }
+            return;
+        }
+    }
+
+    // 6. Particle Physics Update
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        if (!s_particles[i].active) continue;
+        s_particles[i].x += s_particles[i].vx;
+        s_particles[i].y += s_particles[i].vy;
+        s_particles[i].vy += 16; // gravity ~ 0.0625 px/f
+        if (s_particles[i].life > 0) {
+            s_particles[i].life--;
+        } else {
+            s_particles[i].active = false;
+        }
+    }
+
+
     // Check Stage Clear
     if (s_destructible_remaining == 0) {
         sfx_stage_clear();
@@ -733,8 +918,22 @@ static void update_playing(void) {
 void game_update(void) {
     s_state_timer++;
 
+    // Hardware background screen shake processing
+    if (s_shake_timer > 0) {
+        s_shake_timer--;
+        s8 ox = (s_shake_timer & 1) ? (s8)s_shake_mag : -(s8)s_shake_mag;
+        s8 oy = (s_shake_timer & 2) ? (s8)(s_shake_mag >> 1) : -(s8)(s_shake_mag >> 1);
+        REG_BG0HOFS = (u16)(s16)ox;
+        REG_BG0VOFS = (u16)(s16)oy;
+    } else {
+        REG_BG0HOFS = 0;
+        REG_BG0VOFS = 0;
+    }
+
     switch (s_state) {
         case STATE_TITLE:
+            REG_BG0HOFS = 0;
+            REG_BG0VOFS = 0;
             if (key_was_pressed(KEY_START) || key_was_pressed(KEY_A)) {
                 game_start_new();
             }
@@ -830,6 +1029,21 @@ void game_render(void) {
         oam_set(sid++, px + 16, py, ATTR0_WIDE, ATTR1_SIZE_8, right_tile, 0, false, false);
     }
 
+    // 1b. Paddle Thruster Exhaust Flames
+    if (s_paddle.vx != 0) {
+        if (s_paddle.vx < 0) {
+            // Moving Left -> Exhaust flame under right side
+            s16 flame_x = px + s_paddle.width - 6;
+            s16 flame_y = py + 7 + ((s_state_timer & 2) ? 1 : 0);
+            oam_set(sid++, flame_x, flame_y, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_THRUSTER_L, 0, false, false);
+        } else {
+            // Moving Right -> Exhaust flame under left side
+            s16 flame_x = px - 2;
+            s16 flame_y = py + 7 + ((s_state_timer & 2) ? 1 : 0);
+            oam_set(sid++, flame_x, flame_y, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_THRUSTER_R, 0, false, false);
+        }
+    }
+
     // 2. Render Balls (8x8)
     for (int i = 0; i < MAX_BALLS; i++) {
         if (!s_balls[i].active) continue;
@@ -864,12 +1078,29 @@ void game_render(void) {
         oam_set(sid++, cx, cy, ATTR0_WIDE, ATTR1_SIZE_8, tile, 0, false, false);
     }
 
-    // 5. Sidebar Lives Icons
+    // 5. Render Floating Hazards (8x8)
+    for (int i = 0; i < MAX_HAZARDS; i++) {
+        if (!s_hazards[i].active) continue;
+        s16 hx = FP_TO_INT(s_hazards[i].x);
+        s16 hy = FP_TO_INT(s_hazards[i].y);
+        u16 htile = (s_hazards[i].anim_frame == 0) ? SPRITE_TILE_HAZARD_1 : SPRITE_TILE_HAZARD_2;
+        oam_set(sid++, hx, hy, ATTR0_SQUARE, ATTR1_SIZE_8, htile, 0, false, false);
+    }
+
+    // 6. Render Shatter Debris Particles (8x8)
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        if (!s_particles[i].active) continue;
+        s16 px_pt = FP_TO_INT(s_particles[i].x);
+        s16 py_pt = FP_TO_INT(s_particles[i].y);
+        oam_set(sid++, px_pt, py_pt, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_PARTICLE, s_particles[i].pal, false, false);
+    }
+
+    // 7. Sidebar Lives Icons
     for (s8 i = 0; i < s_lives && i < 5; i++) {
         oam_set(sid++, 196 + (i * 8), 132, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_MINI_PADDLE, 0, false, false);
     }
 
-    // 6. Sidebar Active Powerup Badge (16x16)
+    // 8. Sidebar Active Powerup Badge (16x16)
     if (s_paddle.active_pwr != PWR_NONE) {
         u16 btile = SPRITE_TILE_BADGE_NONE;
         switch (s_paddle.active_pwr) {
@@ -883,6 +1114,7 @@ void game_render(void) {
     }
 
     oam_commit();
+
 }
 
 GameState game_get_state(void) {

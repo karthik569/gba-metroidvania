@@ -17,6 +17,8 @@
 #define MAX_BALLS           3
 #define MAX_CAPSULES        4
 #define MAX_LASERS          4
+#define MAX_HAZARDS         2
+#define MAX_PARTICLES       12
 #define MAX_STAGES          5
 
 // Brick Types
@@ -84,6 +86,23 @@ typedef struct {
     fixed_t vy;
     bool active;
 } Laser;
+
+typedef struct {
+    fixed_t x, y;
+    fixed_t base_x;
+    fixed_t vy;
+    u16 wave_timer;
+    bool active;
+    u8 anim_frame;
+} Hazard;
+
+typedef struct {
+    fixed_t x, y;
+    fixed_t vx, vy;
+    u8 life;
+    u8 pal;
+    bool active;
+} Particle;
 
 typedef struct {
     u8 type;
