@@ -76,8 +76,34 @@ The output file is **`outpost_zero.gba`**, ready to be opened in any GBA emulato
 * `src/graphics.c`: Hardware VRAM, OAM sprite attribute manager, and high-speed DMA3 transfers.
 * `src/input.c`: Hardware keypad poller (`KEY_A`, `KEY_B`, `KEY_R`, `KEY_L`, D-Pad).
 * `src/audio.c`: GBA PSG direct-register sound engine (beam lasers, explosions, jump chirps, boss roar).
-* `src/map.c`: 7-room tilemap matrix and collision query system.
-* `src/entity.c`: Fixed-point subpixel physics (8.8 FP), player mechanics, enemy AI, and weapons.
-* `src/assets.c`: 4bpp 16-color indexed background tiles and sprite sheets.
+* `src/map.c`: 7-room tilemap matrix, collision query system, and room nomenclature.
+* `src/entity.c`: Fixed-point subpixel physics (8.8 FP), 16x32 Samus-style Power Suit & Drone rendering, HUD overlay, and event triggers.
+* `src/assets.c`: 4bpp 16-color indexed background tiles, 16x32 suit sprites, and HUD glyphs.
+* `src/logger.c`: Dual-target debug engine (mGBA register I/O `0x04FFF...` + SRAM ring buffer `0x0E000200`).
+* `src/save.c`: Checksummed cartridge battery SRAM save manager (`0x0E000000`).
 * `gba_cart.ld`: GNU linker script mapping code to ROM (`0x08000000`) and data to EWRAM (`0x02000000`).
 * `tools/fix_header.py`: GBA header complement checksum verification tool.
+* `tools/gba_logger.py`: Host companion tool for live log tailing (`--watch`), dumping (`--dump`), and SRAM inspection (`--info`).
+
+---
+
+## 🔍 In-Game Debug Logger & Host Telemetry
+
+AERO-VOID features an embedded telemetry engine that simultaneously streams real-time diagnostic logs to the **mGBA debug console** and records a circular FIFO log ring buffer directly into **Cartridge SRAM (`0x0E000200`)**.
+
+Because every GBA emulator automatically dumps SRAM to a `.sav` file (e.g. `outpost_zero.sav`), all gameplay events (room transitions, damage, morphing, wall-kicks, weapon fire, boss combat) are captured to disk without requiring any special emulator builds.
+
+### Host Log Tool Usage (`tools/gba_logger.py`)
+
+1. **Inspect Save Game & Log Telemetry:**
+   ```bash
+   python3 tools/gba_logger.py outpost_zero.sav --info
+   ```
+2. **Dump Logs to File & Terminal:**
+   ```bash
+   python3 tools/gba_logger.py outpost_zero.sav --dump --out outpost_zero.log
+   ```
+3. **Live Real-Time Watcher (tail logs as you play in emulator):**
+   ```bash
+   python3 tools/gba_logger.py outpost_zero.sav --watch
+   ```

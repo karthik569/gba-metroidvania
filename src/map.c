@@ -257,3 +257,16 @@ u8 map_current_room_id(void) {
 const Room* map_get_current_room(void) {
     return &s_rooms[s_current_room_id];
 }
+
+const char* map_get_room_name(u8 room_id) {
+    switch (room_id) {
+        case 0: return "Landing Dock";
+        case 1: return "Airflow Shaft";
+        case 2: return "Security Armory";
+        case 3: return "Power Conduit";
+        case 4: return "Hub Corridor";
+        case 5: return "Sentinel Boss Arena";
+        case 6: return "Save Station";
+        default: return "Unknown Sector";
+    }
+}

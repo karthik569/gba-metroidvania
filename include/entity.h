@@ -61,6 +61,9 @@ void entities_update(void);
 void entities_render(void);
 
 const Player* entity_get_player(void);
+Player* entity_get_player_mut(void);
+void entity_set_checkpoint(u8 room, s16 x, s16 y);
+void entity_restore_save(const Player* saved_player, u8 room, s16 x, s16 y);
 bool entity_is_game_won(void);
 
 #ifdef __cplusplus

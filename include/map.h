@@ -32,6 +32,7 @@ void map_set_tile(u8 tile_x, u8 tile_y, u8 tile_id);
 void map_clear_room_item(u8 room_id);
 u8 map_current_room_id(void);
 const Room* map_get_current_room(void);
+const char* map_get_room_name(u8 room_id);
 
 #ifdef __cplusplus
 }

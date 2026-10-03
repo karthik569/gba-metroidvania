@@ -4,6 +4,8 @@
 #include "audio.h"
 #include "graphics.h"
 #include "assets.h"
+#include "logger.h"
+#include "save.h"
 
 static Player s_player;
 static Projectile s_projectiles[MAX_PROJECTILES];
@@ -65,6 +67,10 @@ void entity_respawn(void) {
 
     s_game_won = false;
     entities_reset_room();
+
+    LOG_INFO("PLAYER", "Respawned at Room %d (%s) @ (%d, %d), HP: %d, Missiles: %d",
+             s_checkpoint_room, map_get_room_name(s_checkpoint_room),
+             s_checkpoint_x, s_checkpoint_y, s_player.health, s_player.missiles);
 }
 
 void entities_init(void) {
@@ -96,6 +102,10 @@ void entities_reset_room(void) {
     s_item.type = r->item_type;
     s_item.x = r->item_x;
     s_item.y = r->item_y;
+
+    if (r->enemy_type == 2) {
+        LOG_INFO("BOSS", "Corrupted Defense Sentinel active! Starting HP: %d", s_enemy.health);
+    }
 }
 
 static void fire_projectile(void) {
@@ -134,8 +144,10 @@ static void fire_projectile(void) {
             if (shoot_missile) {
                 s_player.missiles--;
                 sfx_missile();
+                LOG_DEBUG("WEAPON", "Fired Concussion Missile (remaining ammo: %d)", s_player.missiles);
             } else {
                 sfx_laser();
+                LOG_DEBUG("WEAPON", "Fired Energy Blaster beam");
             }
             break;
         }
@@ -147,12 +159,17 @@ void entities_update(void) {
     if (s_player.shoot_cooldown > 0) s_player.shoot_cooldown--;
     s_player.anim_timer++;
 
+    s16 px = FP_TO_INT(s_player.x);
+    s16 py = FP_TO_INT(s_player.y);
+
     // -------------------------------------------------------------
     // 1. Player Input & Controls
     // -------------------------------------------------------------
     // Toggle Missile Mode with R or Select
     if (s_player.has_missile_upgrade && (key_was_pressed(KEY_R) || key_was_pressed(KEY_SELECT))) {
         s_player.missile_selected = !s_player.missile_selected;
+        LOG_INFO("WEAPON", "Active weapon toggled to %s",
+                 s_player.missile_selected ? "Concussion Missiles" : "Standard Beam");
     }
 
     // Morph / Nano-Drone Form Toggle (Down to morph, Up to unmorph)
@@ -161,11 +178,10 @@ void entities_update(void) {
             s_player.is_drone = true;
             s_player.crouch_timer = 0;
             s_player.y += INT_TO_FP(16); // Feet stay on ground (HUMAN_H 28 - DRONE_H 12 = 16)
+            LOG_INFO("PLAYER", "Morphed into Nano-Drone at (%d, %d)", px, py);
         }
     } else {
         if (key_was_pressed(KEY_UP) || (key_is_down(KEY_UP) && ++s_player.crouch_timer > 5)) {
-            s16 px = FP_TO_INT(s_player.x);
-            s16 py = FP_TO_INT(s_player.y);
             s16 target_y = py - 16;
             // Only unmorph if headroom is completely clear
             bool blocked = is_tile_solid(map_get_tile(px + 2, target_y)) || 
@@ -176,6 +192,7 @@ void entities_update(void) {
                 s_player.is_drone = false;
                 s_player.crouch_timer = 0;
                 s_player.y -= INT_TO_FP(16);
+                LOG_INFO("PLAYER", "Unmorphed to humanoid Power Suit at (%d, %d)", px, py);
             }
         }
     }
@@ -208,12 +225,14 @@ void entities_update(void) {
             s_player.facing_right = true;
             s_player.jump_held = true;
             sfx_jump();
+            LOG_INFO("PLAYER", "Wall-jump kick off left wall at (%d, %d)", px, py);
         } else if (s_player.touching_wall_right) {
             s_player.vy = WALL_JUMP_FORCE;
             s_player.vx = -RUN_SPEED;
             s_player.facing_right = false;
             s_player.jump_held = true;
             sfx_jump();
+            LOG_INFO("PLAYER", "Wall-jump kick off right wall at (%d, %d)", px, py);
         }
     }
     if (!key_is_down(KEY_A)) {
@@ -239,8 +258,8 @@ void entities_update(void) {
     // -------------------------------------------------------------
     // 2. Physics & Collision Resolution
     // -------------------------------------------------------------
-    s16 px = FP_TO_INT(s_player.x);
-    s16 py = FP_TO_INT(s_player.y);
+    px = FP_TO_INT(s_player.x);
+    py = FP_TO_INT(s_player.y);
     s16 h = s_player.is_drone ? DRONE_H : HUMAN_H;
     s16 w = s_player.is_drone ? DRONE_W : HUMAN_W;
 
@@ -258,9 +277,9 @@ void entities_update(void) {
             s_player.touching_wall_right = true;
         }
     } else if (s_player.vx < 0) {
-        if (is_tile_solid(map_get_tile(nx, py + 2)) || 
-            is_tile_solid(map_get_tile(nx, py + h / 2)) ||
-            is_tile_solid(map_get_tile(nx, py + h - 1))) {
+        if (is_tile_solid(map_get_tile(nx - 1, py + 2)) || 
+            is_tile_solid(map_get_tile(nx - 1, py + h / 2)) ||
+            is_tile_solid(map_get_tile(nx - 1, py + h - 1))) {
             s_player.vx = 0;
             s_player.touching_wall_left = true;
         }
@@ -268,35 +287,42 @@ void entities_update(void) {
     s_player.x += s_player.vx;
 
     // Vertical Collision
+    px = FP_TO_INT(s_player.x);
+    py = FP_TO_INT(s_player.y);
     fixed_t next_y = s_player.y + s_player.vy;
     s16 ny = FP_TO_INT(next_y);
-    px = FP_TO_INT(s_player.x);
 
-    if (s_player.vy > 0) { // Falling downward
-        u8 t_left = map_get_tile(px + 2, ny + h);
-        u8 t_mid  = map_get_tile(px + w / 2, ny + h);
-        u8 t_right = map_get_tile(px + w - 2, ny + h);
-        bool solid_hit = is_tile_solid(t_left) || is_tile_solid(t_mid) || is_tile_solid(t_right);
-        bool plat_hit = is_tile_platform(t_left) || is_tile_platform(t_mid) || is_tile_platform(t_right);
-
-        s16 plat_top = (ny + h) / 8 * 8;
-        bool drop_through = key_is_down(KEY_DOWN) && (key_is_down(KEY_A) || key_was_pressed(KEY_A));
-        bool landed_on_plat = plat_hit && !drop_through && (py + h <= plat_top + 4);
-
-        if (solid_hit || landed_on_plat) {
-            s_player.y = INT_TO_FP(plat_top - h);
+    if (s_player.vy < 0) { // Moving UP
+        if (is_tile_solid(map_get_tile(px + 2, ny)) || is_tile_solid(map_get_tile(px + w - 2, ny))) {
             s_player.vy = 0;
-            s_player.on_ground = true;
+            s_player.y = INT_TO_FP(((ny / 8) + 1) * 8);
         } else {
             s_player.y += s_player.vy;
-            s_player.on_ground = false;
         }
-    } else if (s_player.vy < 0) { // Moving upward
-        if (is_tile_solid(map_get_tile(px + 2, ny)) || 
-            is_tile_solid(map_get_tile(px + w / 2, ny)) ||
-            is_tile_solid(map_get_tile(px + w - 2, ny))) {
+        s_player.on_ground = false;
+    } else { // Moving DOWN or Stationary
+        u8 t_left  = map_get_tile(px + 2, ny + h);
+        u8 t_right = map_get_tile(px + w - 2, ny + h);
+
+        bool land_solid = is_tile_solid(t_left) || is_tile_solid(t_right);
+        bool land_plat = false;
+
+        // Platform one-way collision: only land if bottom edge was previously at or above platform top
+        if (!land_solid) {
+            bool plat_left = is_tile_platform(t_left);
+            bool plat_right = is_tile_platform(t_right);
+            if (plat_left || plat_right) {
+                s16 plat_top = (ny + h) & ~7;
+                if ((py + h) <= plat_top + 2) {
+                    land_plat = true;
+                }
+            }
+        }
+
+        if (land_solid || land_plat) {
             s_player.vy = 0;
-            s_player.y = INT_TO_FP((ny / 8 + 1) * 8);
+            s_player.on_ground = true;
+            s_player.y = INT_TO_FP(((ny + h) / 8) * 8 - h);
         } else {
             s_player.y += s_player.vy;
             s_player.on_ground = false;
@@ -312,18 +338,21 @@ void entities_update(void) {
             s_player.vy = -INT_TO_FP(3);
             s_player.invuln_timer = 30;
             sfx_hit();
+            LOG_WARN("PLAYER", "Acid hazard damage! -15 HP, current HP: %d/%d", s_player.health, s_player.max_health);
         }
     }
 
     // Save Console interaction (in Room 6)
     if (map_get_tile(px + 4, py + h) == TILE_SAVE_CONSOLE || map_get_tile(px + 4, py + h - 1) == TILE_SAVE_CONSOLE) {
-        s_checkpoint_room = 6;
-        s_checkpoint_x = 100;
-        s_checkpoint_y = 112;
-        if (s_player.health < s_player.max_health || (s_player.has_missile_upgrade && s_player.missiles < s_player.max_missiles)) {
+        bool recharged = (s_player.health < s_player.max_health || (s_player.has_missile_upgrade && s_player.missiles < s_player.max_missiles));
+        if (recharged || s_checkpoint_room != 6) {
             s_player.health = s_player.max_health;
             if (s_player.has_missile_upgrade) s_player.missiles = s_player.max_missiles;
+            s_checkpoint_room = 6;
+            s_checkpoint_x = 100;
+            s_checkpoint_y = 112;
             sfx_pickup();
+            save_game(&s_player, 6, 100, 112);
         }
     }
 
@@ -337,6 +366,8 @@ void entities_update(void) {
             s_player.missile_selected = true;
             map_clear_room_item(map_current_room_id());
             sfx_pickup();
+            LOG_INFO("PICKUP", "Acquired Concussion Missile upgrade pod in Room %d (%s)!",
+                     map_current_room_id(), map_get_room_name(map_current_room_id()));
         }
     }
 
@@ -345,29 +376,37 @@ void entities_update(void) {
     // -------------------------------------------------------------
     const Room* curr_r = map_get_current_room();
     if (px <= 0 && curr_r->exit_left >= 0) {
-        map_load_room(curr_r->exit_left);
+        u8 next_r = curr_r->exit_left;
+        map_load_room(next_r);
         s_player.x = INT_TO_FP(SCREEN_WIDTH - w - 16);
         s_player.vx = 0;
         s_player.vy = 0;
         entities_reset_room();
+        LOG_INFO("ROOM", "Room transition Left -> Room %d (%s)", next_r, map_get_room_name(next_r));
     } else if (px + w >= SCREEN_WIDTH && curr_r->exit_right >= 0) {
-        map_load_room(curr_r->exit_right);
+        u8 next_r = curr_r->exit_right;
+        map_load_room(next_r);
         s_player.x = INT_TO_FP(16);
         s_player.vx = 0;
         s_player.vy = 0;
         entities_reset_room();
+        LOG_INFO("ROOM", "Room transition Right -> Room %d (%s)", next_r, map_get_room_name(next_r));
     } else if (py <= 0 && curr_r->exit_up >= 0) {
-        map_load_room(curr_r->exit_up);
+        u8 next_r = curr_r->exit_up;
+        map_load_room(next_r);
         s_player.y = INT_TO_FP(SCREEN_HEIGHT - h - 18);
         s_player.vx = 0;
         s_player.vy = 0;
         entities_reset_room();
+        LOG_INFO("ROOM", "Room transition Up -> Room %d (%s)", next_r, map_get_room_name(next_r));
     } else if (py + h >= SCREEN_HEIGHT && curr_r->exit_down >= 0) {
-        map_load_room(curr_r->exit_down);
+        u8 next_r = curr_r->exit_down;
+        map_load_room(next_r);
         s_player.y = INT_TO_FP(16);
         s_player.vx = 0;
         s_player.vy = 0;
         entities_reset_room();
+        LOG_INFO("ROOM", "Room transition Down -> Room %d (%s)", next_r, map_get_room_name(next_r));
     }
 
     // -------------------------------------------------------------
@@ -394,6 +433,7 @@ void entities_update(void) {
                 u8 ty = by / 8;
                 map_set_tile(tx, ty, TILE_EMPTY);
                 sfx_missile();
+                LOG_INFO("MAP", "Red Security Barrier destroyed by missile at tile (%d, %d)", tx, ty);
             }
             s_projectiles[i].active = false;
             continue;
@@ -415,11 +455,17 @@ void entities_update(void) {
                 s_enemy.health -= dmg;
                 sfx_hit();
 
+                if (s_enemy.type == 2) {
+                    LOG_INFO("BOSS", "Sentinel struck for %d damage! HP remaining: %d",
+                             dmg, s_enemy.health > 0 ? s_enemy.health : 0);
+                }
+
                 if (s_enemy.health <= 0) {
                     s_enemy.active = false;
                     if (s_enemy.type == 2) {
                         sfx_boss_roar();
                         s_game_won = true;
+                        LOG_INFO("BOSS", "Corrupted Defense Sentinel destroyed! Outpost Zero secured! VICTORY!");
                     }
                 }
             }
@@ -454,6 +500,7 @@ void entities_update(void) {
                 s_player.invuln_timer = 40;
                 s_player.vy = -INT_TO_FP(2);
                 sfx_hit();
+                LOG_WARN("PLAYER", "Hit by Crawler! -10 HP, current HP: %d/%d", s_player.health, s_player.max_health);
             }
         } else if (s_enemy.type == 2) { // Boss Sentinel
             s_enemy.state_timer++;
@@ -470,6 +517,7 @@ void entities_update(void) {
                 s_player.invuln_timer = 50;
                 s_player.vy = -INT_TO_FP(3);
                 sfx_hit();
+                LOG_WARN("PLAYER", "Hit by Boss Sentinel! -20 HP, current HP: %d/%d", s_player.health, s_player.max_health);
             }
         }
     }
@@ -547,6 +595,29 @@ void entities_render(void) {
 
 const Player* entity_get_player(void) {
     return &s_player;
+}
+
+Player* entity_get_player_mut(void) {
+    return &s_player;
+}
+
+void entity_set_checkpoint(u8 room, s16 x, s16 y) {
+    s_checkpoint_room = room;
+    s_checkpoint_x = x;
+    s_checkpoint_y = y;
+}
+
+void entity_restore_save(const Player* saved_player, u8 room, s16 x, s16 y) {
+    s_player.health = saved_player->health;
+    s_player.max_health = saved_player->max_health;
+    s_player.missiles = saved_player->missiles;
+    s_player.max_missiles = saved_player->max_missiles;
+    s_player.has_missile_upgrade = saved_player->has_missile_upgrade;
+    s_unlocked_missiles = saved_player->has_missile_upgrade;
+    s_checkpoint_room = room;
+    s_checkpoint_x = x;
+    s_checkpoint_y = y;
+    entity_respawn();
 }
 
 bool entity_is_game_won(void) {
