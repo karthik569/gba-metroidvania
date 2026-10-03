@@ -17,6 +17,9 @@ int main(void) {
         // Synchronize with VBlank (Vertical blank interrupt line @ 60 FPS)
         vsync();
 
+        // Immediately commit Shadow OAM during safe VBlank window
+        oam_commit();
+
         // Poll physical gamepad keys
         input_poll();
 

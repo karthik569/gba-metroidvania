@@ -36,10 +36,11 @@ static const s8 s_sin32[32] = {
    -16,-15,-13,-11, -9, -6, -3,  0
 };
 
-static void trigger_screen_shake(u8 mag, u8 duration) {
-    s_shake_mag = mag;
-    s_shake_timer = duration;
+static inline void trigger_screen_shake(u8 mag, u8 duration) {
+    (void)mag;
+    (void)duration;
 }
+
 
 static void spawn_particles(s16 x, s16 y, u8 pal) {
     static const s16 vxs[4] = {-192, 192, -128, 128};
@@ -210,6 +211,13 @@ static void render_brick_tiles(u8 col, u8 row, u8 type, u8 hp) {
 // Static Board Layout (Walls, Playfield, Sidebar)
 // -----------------------------------------------------------------
 static void init_background_playfield(void) {
+    // Clear entire 32x32 ScreenBlock 28 so all margins and off-screen areas are empty
+    for (u8 y = 0; y < 32; y++) {
+        for (u8 x = 0; x < 32; x++) {
+            set_bg_tile(x, y, TILE_EMPTY);
+        }
+    }
+
     for (u8 y = 0; y < 20; y++) {
         for (u8 x = 0; x < 30; x++) {
             if (x == 0 && y == 0) {
@@ -224,11 +232,10 @@ static void init_background_playfield(void) {
                 set_bg_tile(x, y, TILE_WALL_RIGHT);
             } else if (x >= 24) {
                 set_bg_tile(x, y, TILE_SIDEBAR_BG);
-            } else {
-                set_bg_tile(x, y, TILE_EMPTY);
             }
         }
     }
+
 
     // Horizontal dividers in sidebar
     for (u8 x = 24; x < 30; x++) {
@@ -920,22 +927,11 @@ static void update_playing(void) {
 void game_update(void) {
     s_state_timer++;
 
-    // Hardware background screen shake processing
-    if (s_shake_timer > 0) {
-        s_shake_timer--;
-        s8 ox = (s_shake_timer & 1) ? (s8)s_shake_mag : -(s8)s_shake_mag;
-        s8 oy = (s_shake_timer & 2) ? (s8)(s_shake_mag >> 1) : -(s8)(s_shake_mag >> 1);
-        REG_BG0HOFS = (u16)(s16)ox;
-        REG_BG0VOFS = (u16)(s16)oy;
-    } else {
-        REG_BG0HOFS = 0;
-        REG_BG0VOFS = 0;
-    }
+    REG_BG0HOFS = 0;
+    REG_BG0VOFS = 0;
 
     switch (s_state) {
         case STATE_TITLE:
-            REG_BG0HOFS = 0;
-            REG_BG0VOFS = 0;
             if (key_was_pressed(KEY_START) || key_was_pressed(KEY_A)) {
                 game_start_new();
             }
@@ -1010,9 +1006,9 @@ void game_render(void) {
         } else {
             draw_text(4, 11, "           ");
         }
-        oam_commit();
         return;
     }
+
 
     s16 px = FP_TO_INT(s_paddle.x);
     s16 py = FP_TO_INT(s_paddle.y);
@@ -1116,9 +1112,6 @@ void game_render(void) {
         }
         oam_set(sid++, 204, 68, ATTR0_SQUARE, ATTR1_SIZE_16, btile, 0, false, false);
     }
-
-    oam_commit();
-
 }
 
 GameState game_get_state(void) {
