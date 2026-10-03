@@ -19,7 +19,11 @@
 #define MAX_LASERS          4
 #define MAX_HAZARDS         2
 #define MAX_PARTICLES       12
-#define MAX_STAGES          5
+#define MAX_STAGES          20
+#define MAX_KINETIC_BRICKS  2
+#define MAX_REGEN_TRACKERS  16
+#define MAX_BOSS_BOLTS      4
+#define MAX_BOSS_PODS       2
 
 // Brick Types
 #define BRK_EMPTY           0
@@ -31,16 +35,20 @@
 #define BRK_CYAN            6   // 250 pts
 #define BRK_SILVER          7   // 500 pts (2 hits)
 #define BRK_GOLD            8   // Indestructible
+#define BRK_TNT             9   // Explosive 3x3 blast
+#define BRK_REGEN           10  // 3-hit self-repairing matrix
 
 // Power-up Types
 typedef enum {
-    PWR_NONE  = 0,
-    PWR_WIDE  = 1,
-    PWR_LASER = 2,
-    PWR_MULTI = 3,
-    PWR_CATCH = 4,
-    PWR_SLOW  = 5,
-    PWR_LIFE  = 6
+    PWR_NONE   = 0,
+    PWR_WIDE   = 1,
+    PWR_LASER  = 2,
+    PWR_MULTI  = 3,
+    PWR_CATCH  = 4,
+    PWR_SLOW   = 5,
+    PWR_LIFE   = 6,
+    PWR_SHIELD = 7,
+    PWR_MEGA   = 8
 } PowerUpType;
 
 // Game State Machine
@@ -108,6 +116,55 @@ typedef struct {
     u8 type;
     u8 hp;
 } Brick;
+
+typedef struct {
+    fixed_t x, y;
+    fixed_t vx;
+    u8 hp;              // 1..2 hits
+    bool active;
+} KineticBrick;
+
+typedef struct {
+    u8 col, row;
+    u8 hp;              // 1..3 hits
+    u16 heal_timer;     // 300 frames (~5s) -> repairs 1 hp
+    bool active;
+} RegenTracker;
+
+typedef enum {
+    BOSS_PHASE_INACTIVE = 0,
+    BOSS_PHASE_SHIELDED = 1,
+    BOSS_PHASE_EXPOSED  = 2,
+    BOSS_PHASE_ENRAGED  = 3,
+    BOSS_PHASE_DYING    = 4
+} BossPhase;
+
+typedef struct {
+    fixed_t x, y;
+    fixed_t vx, vy;
+    bool active;
+} BossBolt;
+
+typedef struct {
+    fixed_t x, y;
+    s8 hp;
+    bool active;
+} BossPod;
+
+typedef struct {
+    fixed_t x, y;
+    fixed_t base_x;
+    u16 wave_timer;
+    BossPhase phase;
+    s8 hp;
+    u8 max_hp;
+    u8 invuln_flash;
+    u16 shoot_timer;
+    u8 death_timer;
+    bool active;
+    BossPod pods[MAX_BOSS_PODS];
+    BossBolt bolts[MAX_BOSS_BOLTS];
+} Boss;
 
 #ifdef __cplusplus
 extern "C" {

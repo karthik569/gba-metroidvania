@@ -32,12 +32,28 @@
 #define BRICK_SILVER_CRACK_R    23
 #define BRICK_GOLD_L            24
 #define BRICK_GOLD_R            25
+#define BRICK_TNT_L             26
+#define BRICK_TNT_R             27
+#define BRICK_REGEN_L           28
+#define BRICK_REGEN_R           29
 
 // Font in BG tiles
 #define TILE_FONT_0             30
 #define TILE_FONT_A             40
 #define TILE_FONT_COLON         66
 #define TILE_FONT_HYPHEN        67
+#define TILE_FONT_LESS          68
+#define TILE_FONT_GREATER       69
+
+// Dynamic Regenerating Brick Damage States
+#define BRICK_REGEN_DMG1_L      70
+#define BRICK_REGEN_DMG1_R      71
+#define BRICK_REGEN_DMG2_L      72
+#define BRICK_REGEN_DMG2_R      73
+
+// Floor Shield Barrier BG Tiles
+#define TILE_BARRIER_FULL       74
+#define TILE_BARRIER_DMG        75
 
 // Sprite Tile Offsets (1D mapping)
 #define SPRITE_TILE_PADDLE_LEFT     0   // 16x8 = 2 tiles (0..1)
@@ -75,11 +91,27 @@
 // Shatter Debris Particles (8x8 = 1 tile)
 #define SPRITE_TILE_PARTICLE       50
 
+// Kinetic Moving Sprite Brick (16x8 = 2 tiles: 51..52)
+#define SPRITE_TILE_KINETIC_BRICK  51
+
+// New Power-Up Capsules (16x8 = 2 tiles each)
+#define SPRITE_TILE_PWR_SHIELD     53   // 16x8 = 2 tiles (53..54) Capsule [B]
+#define SPRITE_TILE_PWR_MEGA       55   // 16x8 = 2 tiles (55..56) Capsule [M]
+
+// Mega Fiery Plasma Ball (8x8 = 1 tile)
+#define SPRITE_TILE_BALL_MEGA      57
+
+// Boss Projectiles & Entities
+#define SPRITE_TILE_BOSS_BOLT      58   // 8x8   = 1 tile  (58)
+#define SPRITE_TILE_BOSS_POD       60   // 16x16 = 4 tiles (60..63)
+#define SPRITE_TILE_BOSS_CORE      64   // 32x32 = 16 tiles (64..79)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void assets_init(void);
+void assets_load_zone_palette(u8 zone);
 
 #ifdef __cplusplus
 }
