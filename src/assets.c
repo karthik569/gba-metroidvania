@@ -21,24 +21,24 @@ static const u16 s_bg_palette[16] = {
     RGB15(31, 31, 31)   // 15: Pure Energy White
 };
 
-// 16-color Object / Sprite Palette
+// 16-color Object / Sprite Palette (Classic Metroid Power Suit aesthetic)
 static const u16 s_obj_palette[16] = {
     0,                  // 0: Transparent
-    RGB15(3, 4, 6),     // 1: Armor Black Shadow
-    RGB15(5, 10, 22),   // 2: Cyber Blue Suit
-    RGB15(8, 20, 28),   // 3: Suit Highlight Cyan
-    RGB15(22, 30, 31),  // 4: White Armor Plating
-    RGB15(31, 14, 2),   // 5: Visor Amber
-    RGB15(31, 28, 4),   // 6: Visor Bright Flare
-    RGB15(8, 26, 31),   // 7: Blaster Energy Cyan
-    RGB15(28, 4, 4),    // 8: Missile Crimson
-    RGB15(31, 16, 2),   // 9: Missile Exhaust Orange
-    RGB15(16, 4, 20),   // 10: Alien Violet Carapace
-    RGB15(4, 28, 24),   // 11: Alien Bioluminescent Eye
-    RGB15(22, 14, 4),   // 12: Sentinel Boss Bronze
-    RGB15(31, 2, 2),    // 13: Sentinel Laser Red
-    RGB15(31, 31, 12),  // 14: Energy Spark Yellow
-    RGB15(31, 31, 31)   // 15: Pure White Sparkle
+    RGB15(2, 2, 3),     // 1: Armor Black Shadow / Joint Liner
+    RGB15(24, 4, 4),    // 2: Crimson Red Helmet & Torso Plate
+    RGB15(31, 8, 8),    // 3: Bright Crimson Flare
+    RGB15(28, 14, 2),   // 4: Varia Shoulder Amber / Orange
+    RGB15(31, 22, 4),   // 5: Armor Gold / Yellow Primary
+    RGB15(31, 28, 10),  // 6: Armor Bright Yellow Highlight
+    RGB15(4, 28, 8),    // 7: Visor Emerald Green
+    RGB15(16, 31, 16),  // 8: Visor Neon Lime Glint
+    RGB15(4, 18, 10),   // 9: Arm Cannon Forest Green
+    RGB15(8, 28, 31),   // 10: Energy Blaster Cyan
+    RGB15(28, 2, 2),    // 11: Concussion Missile Red
+    RGB15(18, 4, 22),   // 12: Alien Violet Carapace
+    RGB15(22, 14, 4),   // 13: Sentinel Boss Bronze
+    RGB15(31, 2, 2),    // 14: Sentinel Laser Red
+    RGB15(31, 31, 31)   // 15: Pure Energy White
 };
 
 // Background Tiles (8 tiles * 8 words each = 64 words)
@@ -51,7 +51,7 @@ static const u32 s_bg_tiles[64] = {
     0x33333333, 0x32222221, 0x32722271, 0x32222221,
     0x32222221, 0x32722271, 0x32222221, 0x11111111,
 
-    // Tile 2: Platform Grate
+    // Tile 2: Platform Grate (One-way jump-through)
     0x77777777, 0x65656565, 0x56565656, 0x65656565,
     0x56565656, 0x65656565, 0x56565656, 0x11111111,
 
@@ -76,147 +76,230 @@ static const u32 s_bg_tiles[64] = {
     0x7EEEEEE7, 0x72222227, 0x72626227, 0x11111111
 };
 
-// Sprite Tiles: Each 8x8 tile = exactly 8 words!
-// In 1D mapping mode, 16x16 uses [T, T+1, T+2, T+3]
+// Sprite Tiles: strictly 8 words (32 bytes) per 8x8 tile
 static const u32 s_obj_tiles[] = {
     // -------------------------------------------------------------
-    // Tile 0..3: Player Idle (16x16 = 4 tiles)
+    // Tile 0..7: Player Humanoid Idle (16x32 = 8 tiles)
     // -------------------------------------------------------------
-    // Tile 0: Top-Left (Head/Visor left)
-    0x00000111, 0x00014444, 0x00145666, 0x00146666,
-    0x00013333, 0x00233333, 0x02433333, 0x02433333,
-    // Tile 1: Top-Right (Head/Cannon right)
-    0x11000000, 0x44100000, 0x66410000, 0x66410000,
-    0x33100000, 0x33200770, 0x33420770, 0x33420770,
-    // Tile 2: Bottom-Left (Legs left)
-    0x00233333, 0x00222222, 0x00200000, 0x00200000,
-    0x00300000, 0x00400000, 0x00400000, 0x01100000,
-    // Tile 3: Bottom-Right (Legs right)
-    0x33200000, 0x22100000, 0x00200000, 0x00200000,
-    0x00300000, 0x00400000, 0x00400000, 0x01100000,
+    // Tile 0: Top-Left (Helmet dome & green visor left)
+    0x00000111, 0x00012333, 0x00133222, 0x01337888,
+    0x01227888, 0x00122222, 0x00011111, 0x00014444,
+    // Tile 1: Top-Right (Helmet dome & green visor right)
+    0x11100000, 0x33321000, 0x22233100, 0x88873310,
+    0x88872210, 0x22222100, 0x11111000, 0x44441000,
+    // Tile 2: Chest-Left (Orange Varia shoulder & chest core)
+    0x00144444, 0x01466644, 0x01466644, 0x00144422,
+    0x00122233, 0x001223FF, 0x00122233, 0x00011122,
+    // Tile 3: Chest-Right (Right shoulder & Arm Cannon!)
+    0x44444100, 0x44666410, 0x44666410, 0x22444100,
+    0x33221999, 0xFF32199A, 0x33221999, 0x22111100,
+    // Tile 4: Waist-Left (Liner & gold thigh left)
+    0x00011111, 0x00155555, 0x01566655, 0x01566655,
+    0x00155555, 0x00155555, 0x00111111, 0x00155555,
+    // Tile 5: Waist-Right (Liner & gold thigh right)
+    0x11111000, 0x55555100, 0x55666510, 0x55666510,
+    0x55555100, 0x55555100, 0x11111100, 0x55555100,
+    // Tile 6: Boots-Left (Gold shin & armored boot left)
+    0x00156655, 0x00156655, 0x00155555, 0x00155555,
+    0x01555555, 0x01666665, 0x01111111, 0x00000000,
+    // Tile 7: Boots-Right (Gold shin & armored boot right)
+    0x55665100, 0x55665100, 0x55555100, 0x55555100,
+    0x55555510, 0x56666610, 0x11111110, 0x00000000,
 
     // -------------------------------------------------------------
-    // Tile 4..7: Player Run (16x16 = 4 tiles)
+    // Tile 8..15: Player Humanoid Run Frame (16x32 = 8 tiles)
     // -------------------------------------------------------------
-    // Tile 4: Top-Left
-    0x00000111, 0x00014444, 0x00145666, 0x00146666,
-    0x00013333, 0x02433333, 0x02333333, 0x00233333,
-    // Tile 5: Top-Right
-    0x11000000, 0x44100000, 0x66410000, 0x66410000,
-    0x33100000, 0x33420000, 0x33720000, 0x33200000,
-    // Tile 6: Bottom-Left (Running legs)
-    0x00200000, 0x02000000, 0x03000000, 0x04000000,
-    0x11000000, 0x00000000, 0x00000000, 0x00000000,
-    // Tile 7: Bottom-Right (Trailing leg)
-    0x00000020, 0x00000020, 0x00000030, 0x00000040,
-    0x00000011, 0x00000000, 0x00000000, 0x00000000,
-
-    // -------------------------------------------------------------
-    // Tile 8..11: Player Jump (16x16 = 4 tiles)
-    // -------------------------------------------------------------
-    // Tile 8: Top-Left
-    0x00000111, 0x00014444, 0x00145666, 0x00146666,
-    0x00233333, 0x02433333, 0x02333333, 0x00211111,
+    // Tile 8: Top-Left (Forward leaning helmet)
+    0x00000011, 0x00001233, 0x00013322, 0x00133788,
+    0x00122788, 0x00012222, 0x00001111, 0x00014444,
     // Tile 9: Top-Right
-    0x11000000, 0x44100000, 0x66410000, 0x66410000,
-    0x33200000, 0x33720000, 0x33200000, 0x11200000,
-    // Tile 10: Bottom-Left (Tucked legs)
-    0x02220000, 0x03330000, 0x01110000, 0x00000000,
+    0x11110000, 0x33210000, 0x22331000, 0x88733100,
+    0x88722100, 0x22221000, 0x11110000, 0x44410000,
+    // Tile 10: Chest-Left (Armored Torso running)
+    0x00144664, 0x01466644, 0x01466644, 0x00144422,
+    0x00122233, 0x001223FF, 0x00122233, 0x00011122,
+    // Tile 11: Chest-Right (Arm Cannon leveled forward)
+    0x44444100, 0x44666410, 0x44666410, 0x22444100,
+    0x33221999, 0xFF3219AA, 0x33221999, 0x22111100,
+    // Tile 12: Legs-Left (Forward stride)
+    0x00011111, 0x00155555, 0x01566655, 0x01566655,
+    0x00155555, 0x00015555, 0x00001555, 0x00000155,
+    // Tile 13: Legs-Right (Back stride)
+    0x11111000, 0x55555100, 0x55666510, 0x55666510,
+    0x55555100, 0x55551000, 0x55510000, 0x55100000,
+    // Tile 14: Foot-Left (Planted forward boot)
+    0x00000155, 0x00001565, 0x00015555, 0x00155555,
+    0x01555555, 0x01666665, 0x01111111, 0x00000000,
+    // Tile 15: Foot-Right (Trailing heel kick)
+    0x55100000, 0x56510000, 0x55551000, 0x55551000,
+    0x00055510, 0x00056610, 0x00011110, 0x00000000,
+
+    // -------------------------------------------------------------
+    // Tile 16..23: Player Humanoid Jump Frame (16x32 = 8 tiles)
+    // -------------------------------------------------------------
+    // Tile 16: Top-Left
+    0x00000111, 0x00012333, 0x00133222, 0x01337888,
+    0x01227888, 0x00122222, 0x00011111, 0x00014444,
+    // Tile 17: Top-Right
+    0x11100000, 0x33321000, 0x22233100, 0x88873310,
+    0x88872210, 0x22222100, 0x11111000, 0x44441000,
+    // Tile 18: Chest-Left
+    0x00144444, 0x01466644, 0x01466644, 0x00144422,
+    0x00122233, 0x001223FF, 0x00122233, 0x00011122,
+    // Tile 19: Chest-Right (Cannon ready)
+    0x44444100, 0x44666410, 0x44666410, 0x22444100,
+    0x33221999, 0xFF32199A, 0x33221999, 0x22111100,
+    // Tile 20: Tucked Legs-Left
+    0x00011111, 0x00155555, 0x01566655, 0x01566655,
+    0x01555555, 0x00155555, 0x00011111, 0x00000000,
+    // Tile 21: Tucked Legs-Right
+    0x11111000, 0x55555100, 0x55666510, 0x55666510,
+    0x55555510, 0x55555100, 0x11111000, 0x00000000,
+    // Tile 22: Airborne Boots-Left
+    0x00015555, 0x00156665, 0x01555555, 0x01111111,
     0x00000000, 0x00000000, 0x00000000, 0x00000000,
-    // Tile 11: Bottom-Right
-    0x00002220, 0x00003330, 0x00001110, 0x00000000,
+    // Tile 23: Airborne Boots-Right
+    0x55551000, 0x56665100, 0x55555510, 0x11111110,
     0x00000000, 0x00000000, 0x00000000, 0x00000000,
 
     // -------------------------------------------------------------
-    // Tile 12..15: Player Nano-Drone / Morph (16x16 = 4 tiles)
+    // Tile 24..27: Player Morph Ball / Nano-Drone (16x16 = 4 tiles)
     // -------------------------------------------------------------
-    // Tile 12: Top-Left sphere
-    0x00000001, 0x00001441, 0x00013773, 0x0017FFFF,
-    0x0017FFFF, 0x00013773, 0x00001441, 0x00000001,
-    // Tile 13: Top-Right sphere
-    0x10000000, 0x14410000, 0x37731000, 0xFFFF7100,
-    0xFFFF7100, 0x37731000, 0x14410000, 0x10000000,
-    // Tile 14: Bottom-Left sphere
-    0x00000001, 0x00001441, 0x00013773, 0x0017FFFF,
-    0x0017FFFF, 0x00013773, 0x00001441, 0x00000001,
-    // Tile 15: Bottom-Right sphere
-    0x10000000, 0x14410000, 0x37731000, 0xFFFF7100,
-    0xFFFF7100, 0x37731000, 0x14410000, 0x10000000,
+    // Tile 24: Top-Left (Glowing round sphere)
+    0x00000001, 0x00001441, 0x00014554, 0x00145785,
+    0x00155885, 0x00014554, 0x00001441, 0x00000001,
+    // Tile 25: Top-Right
+    0x10000000, 0x14410000, 0x45541000, 0x58754100,
+    0x58855100, 0x45541000, 0x14410000, 0x10000000,
+    // Tile 26: Bottom-Left
+    0x00000001, 0x00001441, 0x00014554, 0x00145785,
+    0x00155885, 0x00014554, 0x00001441, 0x00000001,
+    // Tile 27: Bottom-Right
+    0x10000000, 0x14410000, 0x45541000, 0x58754100,
+    0x58855100, 0x45541000, 0x14410000, 0x10000000,
 
     // -------------------------------------------------------------
-    // Tile 16: Blaster Beam (8x8 = 1 tile)
+    // Tile 28: Blaster Beam (8x8 = 1 tile)
     // -------------------------------------------------------------
-    0x00000000, 0x00777700, 0x07FFFF70, 0x07FFFF70,
-    0x07FFFF70, 0x00777700, 0x00000000, 0x00000000,
+    0x00000000, 0x00AAAA00, 0x0AFFFA0, 0x0AFFFFA0,
+    0x0AFFFFA0, 0x00AAAA00, 0x00000000, 0x00000000,
 
     // -------------------------------------------------------------
-    // Tile 17: Concussion Missile (8x8 = 1 tile)
+    // Tile 29: Concussion Missile (8x8 = 1 tile)
     // -------------------------------------------------------------
-    0x00088000, 0x00888800, 0x088FF880, 0x88FFFF88,
-    0x088FF880, 0x00999900, 0x00099000, 0x00000000,
+    0x000BB000, 0x00BBBB00, 0x0BBFFBB0, 0xBBFFFFBB,
+    0x0BBFFBB0, 0x00666600, 0x00066000, 0x00000000,
 
-    // Tile 18..19: Empty padding (2 tiles)
+    // Tile 30..31: Empty padding (2 tiles)
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
 
     // -------------------------------------------------------------
-    // Tile 20..23: Alien Crawler (16x16 = 4 tiles)
+    // Tile 32..35: Alien Crawler (16x16 = 4 tiles)
     // -------------------------------------------------------------
-    // Tile 20: Top-Left
-    0x00000001, 0x00001AA1, 0x0001ABBA, 0x001ABBBA,
-    0x01ABBBBA, 0x0001AAAA, 0x00000100, 0x00001000,
-    // Tile 21: Top-Right
-    0x10000000, 0x1AA10000, 0xABBA1000, 0xABBBA100,
-    0xABBBBA10, 0xAAAA1000, 0x00100000, 0x00010000,
-    // Tile 22: Bottom-Left (Legs)
+    // Tile 32: Top-Left
+    0x00000001, 0x00001CC1, 0x0001CDDC, 0x001CDDDC,
+    0x01CDDDDC, 0x0001CCCC, 0x00000100, 0x00001000,
+    // Tile 33: Top-Right
+    0x10000000, 0x1CC10000, 0xCDDC1000, 0xCDDDC100,
+    0xCDDDDC10, 0xCCCC1000, 0x00100000, 0x00010000,
+    // Tile 34: Bottom-Left (Legs)
     0x01000000, 0x10000000, 0x00000000, 0x00000000,
     0x00000000, 0x00000000, 0x00000000, 0x00000000,
-    // Tile 23: Bottom-Right (Legs)
+    // Tile 35: Bottom-Right (Legs)
     0x00000010, 0x00000001, 0x00000000, 0x00000000,
     0x00000000, 0x00000000, 0x00000000, 0x00000000,
 
     // -------------------------------------------------------------
-    // Tile 24..27: Missile Item Pickup (16x16 = 4 tiles)
+    // Tile 36..39: Missile Item Upgrade Pod (16x16 = 4 tiles)
     // -------------------------------------------------------------
-    // Tile 24: Top-Left
-    0x00000008, 0x000008FF, 0x00008FFF, 0x0008FFFF,
-    0x0008FFFF, 0x00008FFF, 0x000008FF, 0x00000008,
-    // Tile 25: Top-Right
-    0x80000000, 0xFF800000, 0xFFF80000, 0xFFFF8000,
-    0xFFFF8000, 0xFFF80000, 0xFF800000, 0x80000000,
-    // Tile 26: Bottom-Left
-    0x00000008, 0x000008FF, 0x00008FFF, 0x0008FFFF,
-    0x0008FFFF, 0x00008FFF, 0x000008FF, 0x00000008,
-    // Tile 27: Bottom-Right
-    0x80000000, 0xFF800000, 0xFFF80000, 0xFFFF8000,
-    0xFFFF8000, 0xFFF80000, 0xFF800000, 0x80000000,
-
-    // Tile 28..31: Empty padding (4 tiles)
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
+    // Tile 36: Top-Left
+    0x0000000B, 0x00000BFF, 0x0000BFFF, 0x000BFFFF,
+    0x000BFFFF, 0x0000BFFF, 0x00000BFF, 0x0000000B,
+    // Tile 37: Top-Right
+    0xB0000000, 0xFFB00000, 0xFFFB0000, 0xFFFFB000,
+    0xFFFFB000, 0xFFFB0000, 0xFFB00000, 0xB0000000,
+    // Tile 38: Bottom-Left
+    0x0000000B, 0x00000BFF, 0x0000BFFF, 0x000BFFFF,
+    0x000BFFFF, 0x0000BFFF, 0x00000BFF, 0x0000000B,
+    // Tile 39: Bottom-Right
+    0xB0000000, 0xFFB00000, 0xFFFB0000, 0xFFFFB000,
+    0xFFFFB000, 0xFFFB0000, 0xFFB00000, 0xB0000000,
 
     // -------------------------------------------------------------
-    // Tile 32..47: Boss Sentinel (32x32 = 16 tiles)
+    // Tile 40..55: Boss Sentinel (32x32 = 16 tiles)
     // -------------------------------------------------------------
-    // 16 tiles of 8 words each = 128 words
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000,
-    0x00011000, 0x001CC100, 0x01CDDC10, 0x1CDDDDC1, 0x1CDDDC10, 0x01CCCC10, 0x00111000, 0x00000000
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+    0x00011000, 0x001DD100, 0x01DEED10, 0x1DEEEED1, 0x1DEEED10, 0x01DDDD10, 0x00111000, 0x00000000,
+
+    // -------------------------------------------------------------
+    // Tile 56: HUD Icon (8x8 = 1 tile) - Energy Heart / E-Tank
+    // -------------------------------------------------------------
+    0x00330330, 0x03FF3FF3, 0x3FFFFFF3, 0x3FFFFFF3,
+    0x03FFFF30, 0x003FF300, 0x00033000, 0x00000000,
+
+    // -------------------------------------------------------------
+    // Tile 57: HUD Missile Icon (8x8 = 1 tile)
+    // -------------------------------------------------------------
+    0x000BB000, 0x00BFB000, 0x0BBFBB00, 0x0BBFBB00,
+    0x0BBFBB00, 0x00666000, 0x00060000, 0x00000000,
+
+    // -------------------------------------------------------------
+    // Tile 58: HUD Selector Arrow (8x8 = 1 tile)
+    // -------------------------------------------------------------
+    0x00000000, 0x000AA000, 0x0000AA00, 0x00000AA0,
+    0x0000AA00, 0x000AA000, 0x00000000, 0x00000000,
+
+    // Tile 59: Padding
+    0, 0, 0, 0, 0, 0, 0, 0,
+
+    // -------------------------------------------------------------
+    // Tile 60..69: HUD Digits '0'..'9' (8x8 = 10 tiles)
+    // -------------------------------------------------------------
+    // Tile 60: '0'
+    0x00000000, 0x00FFFF00, 0x00F00F00, 0x00F00F00,
+    0x00F00F00, 0x00F00F00, 0x00FFFF00, 0x00000000,
+    // Tile 61: '1'
+    0x00000000, 0x0000F000, 0x000FF000, 0x000FF000,
+    0x000FF000, 0x000FF000, 0x00FFFF00, 0x00000000,
+    // Tile 62: '2'
+    0x00000000, 0x00FFFF00, 0x00F00000, 0x00FFFF00,
+    0x00000F00, 0x00000F00, 0x00FFFF00, 0x00000000,
+    // Tile 63: '3'
+    0x00000000, 0x00FFFF00, 0x00F00000, 0x00FFFF00,
+    0x00F00000, 0x00F00000, 0x00FFFF00, 0x00000000,
+    // Tile 64: '4'
+    0x00000000, 0x00F00F00, 0x00F00F00, 0x00FFFF00,
+    0x00F00000, 0x00F00000, 0x00F00000, 0x00000000,
+    // Tile 65: '5'
+    0x00000000, 0x00FFFF00, 0x00000F00, 0x00FFFF00,
+    0x00F00000, 0x00F00000, 0x00FFFF00, 0x00000000,
+    // Tile 66: '6'
+    0x00000000, 0x00FFFF00, 0x00000F00, 0x00FFFF00,
+    0x00F00F00, 0x00F00F00, 0x00FFFF00, 0x00000000,
+    // Tile 67: '7'
+    0x00000000, 0x00FFFF00, 0x00F00000, 0x00F00000,
+    0x000F0000, 0x000F0000, 0x000F0000, 0x00000000,
+    // Tile 68: '8'
+    0x00000000, 0x00FFFF00, 0x00F00F00, 0x00FFFF00,
+    0x00F00F00, 0x00F00F00, 0x00FFFF00, 0x00000000,
+    // Tile 69: '9'
+    0x00000000, 0x00FFFF00, 0x00F00F00, 0x00FFFF00,
+    0x00F00000, 0x00F00000, 0x00FFFF00, 0x00000000
 };
 
 void assets_init(void) {

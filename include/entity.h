@@ -55,6 +55,7 @@ extern "C" {
 #endif
 
 void entities_init(void);
+void entity_respawn(void);
 void entities_reset_room(void);
 void entities_update(void);
 void entities_render(void);

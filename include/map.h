@@ -29,6 +29,7 @@ void map_init(void);
 void map_load_room(u8 room_id);
 u8 map_get_tile(s16 pixel_x, s16 pixel_y);
 void map_set_tile(u8 tile_x, u8 tile_y, u8 tile_id);
+void map_clear_room_item(u8 room_id);
 u8 map_current_room_id(void);
 const Room* map_get_current_room(void);
 

@@ -89,7 +89,7 @@ void map_init(void) {
 
     // -------------------------------------------------------------
     // Room 3: Power Conduit (Morph Tunnel) -> Exits: Up (R1), Down (R4)
-    // Requires Morph / Nano-Drone crawlspace to pass
+    // Vertical descent shaft with platforms and a Morph Drone crawlway
     // -------------------------------------------------------------
     Room* r3 = &s_rooms[3];
     setup_borders(r3, false, false, true, true);
@@ -97,12 +97,32 @@ void map_init(void) {
     r3->exit_right = -1;
     r3->exit_up = 1;
     r3->exit_down = 4;
-    // Tight 1-tile crawlway across middle
-    fill_rect(r3, 2, 6, 27, 13, TILE_SOLID_HULL);
-    // 1-tile vertical shaft on left, 1-tile crawlway under block
-    fill_rect(r3, 2, 14, 27, 14, TILE_EMPTY); // 1-tile crawl space height!
-    // Hazard acid pool on floor
-    fill_rect(r3, 8, 17, 21, 17, TILE_HAZARD);
+
+    // Upper descending platforms (player lands safely from R1 top door at x=13..16, y=0..1)
+    fill_rect(r3, 11, 4, 18, 4, TILE_GRATE);  // Safe landing grate right below top door
+    fill_rect(r3, 4, 7, 9, 7, TILE_GRATE);    // Left step ledge
+    fill_rect(r3, 20, 7, 25, 7, TILE_GRATE);  // Right step ledge
+    fill_rect(r3, 12, 9, 17, 9, TILE_GRATE);  // Mid transition platform
+
+    // Mid divider wall (x=2..19) leaving descent shaft on right (x=20..27)
+    fill_rect(r3, 2, 10, 19, 11, TILE_SOLID_HULL);
+
+    // Right shaft landing platform
+    fill_rect(r3, 20, 13, 27, 13, TILE_SOLID_HULL);
+
+    // 2-tile crawl tunnel (height 16px) requiring Morph Drone to pass to the left!
+    // Ceiling of crawlway
+    fill_rect(r3, 5, 12, 19, 13, TILE_SOLID_HULL);
+    // Tunnel itself is empty at y=14..15, x=5..19
+    // Floor of crawlway
+    fill_rect(r3, 5, 16, 19, 16, TILE_SOLID_HULL);
+
+    // Platform grate above bottom door (x=12..17, y=16) for jumping up when coming from R4
+    fill_rect(r3, 12, 16, 17, 16, TILE_GRATE);
+
+    // Acid hazard pool on floor away from door and drop shaft
+    fill_rect(r3, 20, 17, 26, 17, TILE_HAZARD);
+
     r3->enemy_type = 0;
     r3->item_type = 0;
 
@@ -222,6 +242,12 @@ void map_set_tile(u8 tile_x, u8 tile_y, u8 tile_id) {
     // Update VRAM ScreenBlock directly
     vu16* screenblock = (vu16*)(VRAM_BASE + (28 * 0x800));
     screenblock[tile_y * 32 + tile_x] = tile_id;
+}
+
+void map_clear_room_item(u8 room_id) {
+    if (room_id < NUM_ROOMS) {
+        s_rooms[room_id].item_type = 0;
+    }
 }
 
 u8 map_current_room_id(void) {

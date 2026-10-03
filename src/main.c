@@ -26,9 +26,8 @@ int main(void) {
         // 2. Check Game Over / Respawn condition
         const Player* player = entity_get_player();
         if (player->health <= 0) {
-            // Respawn at landing dock
-            map_load_room(0);
-            entities_init();
+            // Respawn at last saved checkpoint (preserves upgrades)
+            entity_respawn();
         }
 
         // 3. Update Physics, Collisions, Enemies & Projectiles

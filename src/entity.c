@@ -11,6 +11,18 @@ static Enemy s_enemy;
 static Item s_item;
 static bool s_game_won = false;
 
+// Persistent cross-room / checkpoint state
+static bool s_unlocked_missiles = false;
+static u8 s_checkpoint_room = 0;
+static s16 s_checkpoint_x = 32;
+static s16 s_checkpoint_y = 112;
+
+// Hitbox dimensions
+#define HUMAN_H         28
+#define HUMAN_W         12
+#define DRONE_H         12
+#define DRONE_W         12
+
 // Physics constants (8.8 Fixed point)
 #define GRAVITY         (INT_TO_FP(1) / 4)       // 0.25 px/f^2
 #define RUN_SPEED       (INT_TO_FP(2))           // 2.0 px/f
@@ -26,16 +38,17 @@ static bool is_tile_platform(u8 tile) {
     return (tile == TILE_GRATE || tile == TILE_CONDUIT);
 }
 
-void entities_init(void) {
-    s_player.x = INT_TO_FP(32);
-    s_player.y = INT_TO_FP(112);
+void entity_respawn(void) {
+    map_load_room(s_checkpoint_room);
+    s_player.x = INT_TO_FP(s_checkpoint_x);
+    s_player.y = INT_TO_FP(s_checkpoint_y);
     s_player.vx = 0;
     s_player.vy = 0;
     s_player.health = 99;
     s_player.max_health = 99;
-    s_player.missiles = 0;
+    s_player.has_missile_upgrade = s_unlocked_missiles;
+    s_player.missiles = s_unlocked_missiles ? 10 : 0;
     s_player.max_missiles = 10;
-    s_player.has_missile_upgrade = false;
     s_player.missile_selected = false;
     s_player.is_drone = false;
     s_player.on_ground = false;
@@ -43,7 +56,7 @@ void entities_init(void) {
     s_player.jump_held = false;
     s_player.shoot_cooldown = 0;
     s_player.crouch_timer = 0;
-    s_player.invuln_timer = 0;
+    s_player.invuln_timer = 60; // 1s invulnerability on respawn
     s_player.anim_timer = 0;
 
     for (int i = 0; i < MAX_PROJECTILES; i++) {
@@ -52,6 +65,14 @@ void entities_init(void) {
 
     s_game_won = false;
     entities_reset_room();
+}
+
+void entities_init(void) {
+    s_unlocked_missiles = false;
+    s_checkpoint_room = 0;
+    s_checkpoint_x = 32;
+    s_checkpoint_y = 112;
+    entity_respawn();
 }
 
 void entities_reset_room(void) {
@@ -71,7 +92,7 @@ void entities_reset_room(void) {
     s_enemy.health = (r->enemy_type == 2) ? 12 : 3;
     s_enemy.state_timer = 0;
 
-    s_item.active = (r->item_type > 0 && !s_player.has_missile_upgrade);
+    s_item.active = (r->item_type > 0 && !s_unlocked_missiles);
     s_item.type = r->item_type;
     s_item.x = r->item_x;
     s_item.y = r->item_y;
@@ -96,17 +117,17 @@ static void fire_projectile(void) {
                 s_projectiles[i].vy = -INT_TO_FP(5);
                 s_projectiles[i].dir = 0;
             } else {
-                // Shoot horizontally
+                // Shoot horizontally from Arm Cannon (py + 10 for humanoid, py + 4 for drone)
                 if (s_player.facing_right) {
-                    s_projectiles[i].x = INT_TO_FP(px + 12);
+                    s_projectiles[i].x = INT_TO_FP(px + 14);
                     s_projectiles[i].vx = INT_TO_FP(5);
                     s_projectiles[i].dir = 1;
                 } else {
-                    s_projectiles[i].x = INT_TO_FP(px - 4);
+                    s_projectiles[i].x = INT_TO_FP(px - 6);
                     s_projectiles[i].vx = -INT_TO_FP(5);
                     s_projectiles[i].dir = -1;
                 }
-                s_projectiles[i].y = INT_TO_FP(py + 4);
+                s_projectiles[i].y = INT_TO_FP(s_player.is_drone ? (py + 4) : (py + 10));
                 s_projectiles[i].vy = 0;
             }
 
@@ -136,18 +157,25 @@ void entities_update(void) {
 
     // Morph / Nano-Drone Form Toggle (Down to morph, Up to unmorph)
     if (!s_player.is_drone) {
-        if (key_was_pressed(KEY_DOWN) || (key_is_down(KEY_DOWN) && s_player.on_ground && ++s_player.crouch_timer > 10)) {
+        if (key_was_pressed(KEY_DOWN) || (key_is_down(KEY_DOWN) && s_player.on_ground && ++s_player.crouch_timer > 8)) {
             s_player.is_drone = true;
             s_player.crouch_timer = 0;
+            s_player.y += INT_TO_FP(16); // Feet stay on ground (HUMAN_H 28 - DRONE_H 12 = 16)
         }
     } else {
         if (key_was_pressed(KEY_UP) || (key_is_down(KEY_UP) && ++s_player.crouch_timer > 5)) {
             s16 px = FP_TO_INT(s_player.x);
             s16 py = FP_TO_INT(s_player.y);
-            // Only unmorph if headroom is clear
-            if (!is_tile_solid(map_get_tile(px + 4, py - 4))) {
+            s16 target_y = py - 16;
+            // Only unmorph if headroom is completely clear
+            bool blocked = is_tile_solid(map_get_tile(px + 2, target_y)) || 
+                           is_tile_solid(map_get_tile(px + HUMAN_W - 2, target_y)) ||
+                           is_tile_solid(map_get_tile(px + 2, target_y + 8)) ||
+                           is_tile_solid(map_get_tile(px + HUMAN_W - 2, target_y + 8));
+            if (!blocked) {
                 s_player.is_drone = false;
                 s_player.crouch_timer = 0;
+                s_player.y -= INT_TO_FP(16);
             }
         }
     }
@@ -213,8 +241,8 @@ void entities_update(void) {
     // -------------------------------------------------------------
     s16 px = FP_TO_INT(s_player.x);
     s16 py = FP_TO_INT(s_player.y);
-    s16 h = s_player.is_drone ? 10 : 15;
-    s16 w = 12;
+    s16 h = s_player.is_drone ? DRONE_H : HUMAN_H;
+    s16 w = s_player.is_drone ? DRONE_W : HUMAN_W;
 
     // Horizontal Collision
     fixed_t next_x = s_player.x + s_player.vx;
@@ -223,12 +251,16 @@ void entities_update(void) {
     s_player.touching_wall_right = false;
 
     if (s_player.vx > 0) {
-        if (is_tile_solid(map_get_tile(nx + w, py + 2)) || is_tile_solid(map_get_tile(nx + w, py + h - 1))) {
+        if (is_tile_solid(map_get_tile(nx + w, py + 2)) || 
+            is_tile_solid(map_get_tile(nx + w, py + h / 2)) ||
+            is_tile_solid(map_get_tile(nx + w, py + h - 1))) {
             s_player.vx = 0;
             s_player.touching_wall_right = true;
         }
     } else if (s_player.vx < 0) {
-        if (is_tile_solid(map_get_tile(nx, py + 2)) || is_tile_solid(map_get_tile(nx, py + h - 1))) {
+        if (is_tile_solid(map_get_tile(nx, py + 2)) || 
+            is_tile_solid(map_get_tile(nx, py + h / 2)) ||
+            is_tile_solid(map_get_tile(nx, py + h - 1))) {
             s_player.vx = 0;
             s_player.touching_wall_left = true;
         }
@@ -242,9 +274,10 @@ void entities_update(void) {
 
     if (s_player.vy > 0) { // Falling downward
         u8 t_left = map_get_tile(px + 2, ny + h);
+        u8 t_mid  = map_get_tile(px + w / 2, ny + h);
         u8 t_right = map_get_tile(px + w - 2, ny + h);
-        bool solid_hit = is_tile_solid(t_left) || is_tile_solid(t_right);
-        bool plat_hit = is_tile_platform(t_left) || is_tile_platform(t_right);
+        bool solid_hit = is_tile_solid(t_left) || is_tile_solid(t_mid) || is_tile_solid(t_right);
+        bool plat_hit = is_tile_platform(t_left) || is_tile_platform(t_mid) || is_tile_platform(t_right);
 
         s16 plat_top = (ny + h) / 8 * 8;
         bool drop_through = key_is_down(KEY_DOWN) && (key_is_down(KEY_A) || key_was_pressed(KEY_A));
@@ -259,7 +292,9 @@ void entities_update(void) {
             s_player.on_ground = false;
         }
     } else if (s_player.vy < 0) { // Moving upward
-        if (is_tile_solid(map_get_tile(px + 2, ny)) || is_tile_solid(map_get_tile(px + w - 2, ny))) {
+        if (is_tile_solid(map_get_tile(px + 2, ny)) || 
+            is_tile_solid(map_get_tile(px + w / 2, ny)) ||
+            is_tile_solid(map_get_tile(px + w - 2, ny))) {
             s_player.vy = 0;
             s_player.y = INT_TO_FP((ny / 8 + 1) * 8);
         } else {
@@ -282,6 +317,9 @@ void entities_update(void) {
 
     // Save Console interaction (in Room 6)
     if (map_get_tile(px + 4, py + h) == TILE_SAVE_CONSOLE || map_get_tile(px + 4, py + h - 1) == TILE_SAVE_CONSOLE) {
+        s_checkpoint_room = 6;
+        s_checkpoint_x = 100;
+        s_checkpoint_y = 112;
         if (s_player.health < s_player.max_health || (s_player.has_missile_upgrade && s_player.missiles < s_player.max_missiles)) {
             s_player.health = s_player.max_health;
             if (s_player.has_missile_upgrade) s_player.missiles = s_player.max_missiles;
@@ -289,13 +327,15 @@ void entities_update(void) {
         }
     }
 
-    // Item Pickup collision
+    // Item Pickup collision (permanently clears room item!)
     if (s_item.active) {
-        if (px + 12 >= s_item.x && px <= s_item.x + 16 && py + h >= s_item.y && py <= s_item.y + 16) {
+        if (px + w >= s_item.x && px <= s_item.x + 16 && py + h >= s_item.y && py <= s_item.y + 16) {
             s_item.active = false;
+            s_unlocked_missiles = true;
             s_player.has_missile_upgrade = true;
             s_player.missiles = 10;
             s_player.missile_selected = true;
+            map_clear_room_item(map_current_room_id());
             sfx_pickup();
         }
     }
@@ -306,19 +346,27 @@ void entities_update(void) {
     const Room* curr_r = map_get_current_room();
     if (px <= 0 && curr_r->exit_left >= 0) {
         map_load_room(curr_r->exit_left);
-        s_player.x = INT_TO_FP(SCREEN_WIDTH - w - 8);
+        s_player.x = INT_TO_FP(SCREEN_WIDTH - w - 16);
+        s_player.vx = 0;
+        s_player.vy = 0;
         entities_reset_room();
     } else if (px + w >= SCREEN_WIDTH && curr_r->exit_right >= 0) {
         map_load_room(curr_r->exit_right);
-        s_player.x = INT_TO_FP(8);
+        s_player.x = INT_TO_FP(16);
+        s_player.vx = 0;
+        s_player.vy = 0;
         entities_reset_room();
     } else if (py <= 0 && curr_r->exit_up >= 0) {
         map_load_room(curr_r->exit_up);
-        s_player.y = INT_TO_FP(SCREEN_HEIGHT - h - 8);
+        s_player.y = INT_TO_FP(SCREEN_HEIGHT - h - 18);
+        s_player.vx = 0;
+        s_player.vy = 0;
         entities_reset_room();
     } else if (py + h >= SCREEN_HEIGHT && curr_r->exit_down >= 0) {
         map_load_room(curr_r->exit_down);
-        s_player.y = INT_TO_FP(8);
+        s_player.y = INT_TO_FP(16);
+        s_player.vx = 0;
+        s_player.vy = 0;
         entities_reset_room();
     }
 
@@ -431,20 +479,24 @@ void entities_render(void) {
     oam_clear();
     u8 sprite_id = 0;
 
-    // 1. Render Player (16x16)
+    // 1. Render Player
     s16 px = FP_TO_INT(s_player.x);
     s16 py = FP_TO_INT(s_player.y);
 
     if ((s_player.invuln_timer % 4) < 2) {
-        u16 tile = SPRITE_TILE_PLAYER_IDLE;
         if (s_player.is_drone) {
-            tile = SPRITE_TILE_PLAYER_DRONE;
-        } else if (!s_player.on_ground) {
-            tile = SPRITE_TILE_PLAYER_JUMP;
-        } else if (s_player.vx != 0) {
-            tile = ((s_player.anim_timer / 6) % 2 == 0) ? SPRITE_TILE_PLAYER_RUN : SPRITE_TILE_PLAYER_IDLE;
+            // Morph Drone (16x16 square)
+            oam_set(sprite_id++, px, py - 2, ATTR0_SQUARE, ATTR1_SIZE_16, SPRITE_TILE_PLAYER_DRONE, 0, !s_player.facing_right, false);
+        } else {
+            // Humanoid Metroid Power Suit (16x32 tall)
+            u16 tile = SPRITE_TILE_PLAYER_IDLE;
+            if (!s_player.on_ground) {
+                tile = SPRITE_TILE_PLAYER_JUMP;
+            } else if (s_player.vx != 0) {
+                tile = ((s_player.anim_timer / 6) % 2 == 0) ? SPRITE_TILE_PLAYER_RUN : SPRITE_TILE_PLAYER_IDLE;
+            }
+            oam_set(sprite_id++, px, py - 2, ATTR0_TALL, ATTR1_SIZE_32, tile, 0, !s_player.facing_right, false);
         }
-        oam_set(sprite_id++, px, py, ATTR0_SQUARE, ATTR1_SIZE_16, tile, 0, !s_player.facing_right, false);
     }
 
     // 2. Render Projectiles (8x8)
@@ -470,6 +522,24 @@ void entities_render(void) {
     // 4. Render Item Pickup (16x16)
     if (s_item.active) {
         oam_set(sprite_id++, s_item.x, s_item.y, ATTR0_SQUARE, ATTR1_SIZE_16, SPRITE_TILE_ITEM_MISSILE, 0, false, false);
+    }
+
+    // 5. Render HUD Overlay (Top-Left)
+    // Energy Heart Icon
+    oam_set(sprite_id++, 8, 4, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_HUD_ENERGY, 0, false, false);
+    u8 hp = (s_player.health > 99) ? 99 : ((s_player.health < 0) ? 0 : (u8)s_player.health);
+    oam_set(sprite_id++, 18, 4, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_HUD_NUM0 + (hp / 10), 0, false, false);
+    oam_set(sprite_id++, 25, 4, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_HUD_NUM0 + (hp % 10), 0, false, false);
+
+    // Missile HUD (if unlocked)
+    if (s_player.has_missile_upgrade) {
+        if (s_player.missile_selected) {
+            oam_set(sprite_id++, 36, 4, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_HUD_SELECT, 0, false, false);
+        }
+        oam_set(sprite_id++, 44, 4, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_HUD_MISSILE, 0, false, false);
+        u8 ms = (s_player.missiles > 99) ? 99 : (u8)s_player.missiles;
+        oam_set(sprite_id++, 54, 4, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_HUD_NUM0 + (ms / 10), 0, false, false);
+        oam_set(sprite_id++, 61, 4, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_HUD_NUM0 + (ms % 10), 0, false, false);
     }
 
     oam_commit();
