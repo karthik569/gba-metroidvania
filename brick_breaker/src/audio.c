@@ -271,3 +271,116 @@ void bgm_boss_tick(bool enraged) {
         REG_SOUND2CNT_H = enraged ? 0x8480 : 0x83E0; // Higher tension pitch if enraged
     }
 }
+
+// -----------------------------------------------------------------
+// Zone 3 Audio Suite (Neon Overdrive & Option 3 Extended Synth)
+// -----------------------------------------------------------------
+void sfx_portal_warp(void) {
+    // Channel 1: Rapid chromatic frequency sweep
+    REG_SOUND1CNT_L = 0x0012;       // Fast upward sweep, shift 2
+    REG_SOUND1CNT_H = 0xF240;       // Duty 25%, vol 15, decay 2
+    REG_SOUND1CNT_X = 0x8660;       // High synth frequency, trigger
+    // Channel 4: Cyber swirl noise sparkle
+    REG_SOUND4CNT_L = 0xA100;       // Vol 10, decay 1
+    REG_SOUND4CNT_H = 0x8010;       // Fast metallic snap
+}
+
+void sfx_gravity_pull(void) {
+    // Channel 2: Deep pulsing low-frequency throb
+    REG_SOUND2CNT_L = 0xA280;       // Duty 50%, vol 10, decay 2
+    REG_SOUND2CNT_H = 0x8200;       // Deep sub-bass hum (~110Hz)
+}
+
+void sfx_core_laser(void) {
+    // Channel 1: Piercing plasma laser discharge
+    REG_SOUND1CNT_L = 0x001E;       // Fast downward sweep, shift 6
+    REG_SOUND1CNT_H = 0xF180;       // Duty 50%, vol 15, decay 1
+    REG_SOUND1CNT_X = 0x8740;       // Ultra-high laser frequency
+}
+
+void sfx_mine_drop(void) {
+    // Channel 2: High alert proximity pip
+    REG_SOUND2CNT_L = 0x9140;       // Duty 25%, vol 9, decay 1
+    REG_SOUND2CNT_H = 0x8640;       // High warning pitch (~1500Hz)
+}
+
+// Zone 3 Neon Overdrive Synth BGM
+static u16 s_zone3_bgm_timer = 0;
+static bool s_zone3_bgm_active = false;
+
+void bgm_zone3_start(void) {
+    s_zone3_bgm_timer = 0;
+    s_zone3_bgm_active = true;
+}
+
+void bgm_zone3_stop(void) {
+    s_zone3_bgm_active = false;
+    s_zone3_bgm_timer = 0;
+}
+
+void bgm_zone3_tick(void) {
+    if (!s_zone3_bgm_active) return;
+    s_zone3_bgm_timer++;
+
+    u16 step = (s_zone3_bgm_timer / 4) % 16;
+    u16 sub = s_zone3_bgm_timer % 4;
+    if (sub != 0) return;
+
+    // Fast 16-step Synthwave Bassline & Arpeggio on Channel 2, Electro-kick on Channel 4
+    static const u16 s_zone3_bass[16] = {
+        0x8380, 0x8380, 0x8480, 0x8380, // A2 -> A3 octave bounce
+        0x8340, 0x8340, 0x8440, 0x8340, // F2 -> F3 bounce
+        0x8360, 0x8360, 0x8460, 0x8360, // G2 -> G3 bounce
+        0x8390, 0x83A0, 0x83C0, 0x8400  // Rising synth arpeggio fill
+    };
+
+    // Bass note
+    REG_SOUND2CNT_L = 0x9180;           // Duty 50%, vol 9, decay 1
+    REG_SOUND2CNT_H = s_zone3_bass[step];
+
+    // Drums
+    if (step == 0 || step == 4 || step == 8 || step == 12) {
+        // Four-on-the-floor electro kick
+        REG_SOUND4CNT_L = 0x9100;
+        REG_SOUND4CNT_H = 0x8058;
+    } else if (step == 2 || step == 6 || step == 10 || step == 14) {
+        // Crisp hi-hat
+        REG_SOUND4CNT_L = 0x6100;
+        REG_SOUND4CNT_H = 0x8010;
+    }
+}
+
+// Epic Grand Master Victory Ending Credits Fanfare (Option 3)
+static u16 s_victory_bgm_timer = 0;
+
+void bgm_victory_tick(void) {
+    s_victory_bgm_timer++;
+
+    u16 step = (s_victory_bgm_timer / 8) % 16;
+    u16 sub = s_victory_bgm_timer % 8;
+    if (sub != 0) return;
+
+    // Triumphant orchestral chiptune progression: C -> G -> Am -> F -> C
+    static const u16 s_vic_melody[16] = {
+        0x8680, 0x86C0, 0x8700, 0x8740, // C5 -> E5 -> G5 -> C6
+        0x8700, 0x86C0, 0x8680, 0x8640, // G5 -> E5 -> C5 -> B4
+        0x8660, 0x86A0, 0x86E0, 0x8720, // A4 -> C5 -> E5 -> A5
+        0x8700, 0x8740, 0x8780, 0x87A0  // G5 -> C6 -> E6 -> G6 high fanfare
+    };
+
+    REG_SOUND1CNT_L = 0x0000;           // No sweep
+    REG_SOUND1CNT_H = 0xD280;           // Duty 50%, vol 13, decay 2
+    REG_SOUND1CNT_X = s_vic_melody[step];
+
+    // Background brass pulse on Channel 2
+    if (step % 2 == 0) {
+        REG_SOUND2CNT_L = 0xB240;       // Duty 25%, vol 11, decay 2
+        REG_SOUND2CNT_H = 0x8400 + (step * 0x20);
+    }
+
+    // Celebration snare roll on Channel 4
+    if (step == 14 || step == 15) {
+        REG_SOUND4CNT_L = 0x8100;
+        REG_SOUND4CNT_H = 0x8020;
+    }
+}

@@ -13,6 +13,8 @@ void save_set_high_score(u32 score);
 u8 save_get_max_stage(void);
 void save_set_max_stage(u8 stage);
 void save_record_progress(u32 score, u8 stage);
+bool save_is_zone_cleared(u8 zone);
+void save_set_zone_cleared(u8 zone);
 
 #ifdef __cplusplus
 }

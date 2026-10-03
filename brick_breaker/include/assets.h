@@ -106,6 +106,13 @@
 #define SPRITE_TILE_BOSS_POD       60   // 16x16 = 4 tiles (60..63)
 #define SPRITE_TILE_BOSS_CORE      64   // 32x32 = 16 tiles (64..79)
 
+// Zone 3: Quantum Warp Portals & Singularity Entities
+#define SPRITE_TILE_PORTAL_A       80   // 16x16 = 4 tiles (80..83) Portal Alpha (Cyan Vortex)
+#define SPRITE_TILE_PORTAL_B       84   // 16x16 = 4 tiles (84..87) Portal Beta (Magenta Vortex)
+#define SPRITE_TILE_GRAVITY_WELL   88   // 16x16 = 4 tiles (88..91) Gravitational Singularity Core
+#define SPRITE_TILE_BOSS_SATELLITE 92   // 16x16 = 4 tiles (92..95) Quantum Satellite (Stage 30)
+#define SPRITE_TILE_BOSS_MINE      96   // 8x8   = 1 tile  (96)     Cyber-Mine (Stage 30 Meltdown)
+
 #ifdef __cplusplus
 extern "C" {
 #endif

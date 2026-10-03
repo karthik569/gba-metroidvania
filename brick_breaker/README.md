@@ -10,9 +10,9 @@ An action-packed, hardware-accelerated **Arkanoid-style Brick Breaker** built fr
 * **ROM File:** `brick_breaker.gba` (256 KB)
 * **Framerate:** 60 FPS (hardware VBlank locked)
 * **Resolution:** 240 × 160 pixels
-* **Visual Engine:** Dual-zone dynamic background palette swaps (Deep Space & Cyber-Matrix) + OAM hardware sprites + BG tilemap bottom floor barrier
-* **Audio Engine:** Direct PSG hardware chiptune sound engine with dynamic boss battle BGM, impact SFX, and multi-channel victory fanfares
-* **SRAM Persistence:** Battery backup save system (`0x0E000000`) persisting High Score and Campaign Stage Progression (Stages 1–20) with checksum validation and legacy migration
+* **Visual Engine:** Triple-zone dynamic background palette swaps (Deep Space, Cyber-Matrix & Neon Overdrive) + OAM hardware sprites + BG tilemap bottom floor barrier
+* **Audio Engine:** Direct PSG hardware chiptune sound engine with 3 dedicated synth tracks (Neon Overdrive theme, dynamic multi-phase boss battle BGM, and Grand Master ending credits fanfare) + full suite of impact, warp, gravity, and laser SFX
+* **SRAM Persistence:** Battery backup save system (`0x0E000000`) persisting High Score and 30-Stage Campaign Progression with Zone 1/2/3 completion flags, checksum validation, and legacy migration (supporting `BKBK102`, `BKBK101`, and `BKBK100`)
 
 ---
 
@@ -23,6 +23,23 @@ An action-packed, hardware-accelerated **Arkanoid-style Brick Breaker** built fr
 | **D-Pad Left / Right** | Smooth subpixel paddle steering | Cycles starting stage ($1 \dots \text{max\_unlocked}$) with Zone indicator |
 | **A / B Button** | Launches docked/caught balls; Discharges twin Laser Blasters | Starts game at selected stage |
 | **Start Button** | Toggles in-game pause | Starts game from Title Screen |
+
+---
+
+## 🌀 Quantum Warp Portals & Gravitational Physics (Zone 3)
+
+Zone 3 introduces two game-changing physics mechanics:
+
+### 1. Quantum Warp Portals (Portal Alpha & Beta)
+* **Mechanic:** Linked pairs of sub-atomic quantum vortexes placed across the playfield (Portal Alpha in Cyan, Portal Beta in Magenta/Amber).
+* **Teleportation:** Entering either portal instantly transports the ball to the twin portal exit $(X_B, Y_B) + \hat{v} \cdot 12\text{px}$, preserving trajectory while applying a **10% chromatic velocity boost**!
+* **Cooldown Buffer:** A 24-frame ball-specific cooldown prevents jitter or re-entry looping.
+* **Tactical Shortcut:** Enables players to bypass impenetrable Gold barriers and infiltrate high-value inner brick vaults.
+
+### 2. Gravitational Singularity Wells
+* **Mechanic:** Pulsing cyber-singularity cores that dynamically apply an inverse-distance gravitational pull ($\vec{F} \propto \frac{1}{r}$) within a 48px radius.
+* **Orbital Slingshot:** Balls traveling near the well experience realistic curved trajectories, allowing skilled players to slingshot balls around gold bastions and hit obscured angles.
+* **Dual Vortexes:** Stages such as Stage 25 feature twin counter-pull singularities that bend balls in complex S-curve figure-eights.
 
 ---
 
@@ -39,7 +56,7 @@ Destroying colored and armored bricks has a chance to drop special capsules:
 | **[S]** | **Slow Ball** | Blue | Temporarily slows down high-velocity balls for precision control. |
 | **[P]** | **Extra Life** | Gold | Awards +1 reserve paddle and 1,000 bonus points. |
 | **[B]** | **Energy Shield Barrier** | Amber | Deploys a 2-hit floor barrier across the bottom playfield via BG tilemaps (zero OAM overhead), catching missed balls and degrading on impact. |
-| **[M]** | **Mega Piercing Ball** | Fiery Red | Imbues balls with plasma fury for 12 seconds, plowing straight through destructible bricks without deflecting and neutralizing enemy bolts! |
+| **[M]** | **Mega Piercing Ball** | Fiery Red | Imbues balls with plasma fury for 12 seconds, plowing straight through destructible bricks without deflecting and neutralizing enemy bolts and mines! |
 
 ---
 
@@ -76,13 +93,26 @@ Destroying colored and armored bricks has a chance to drop special capsules:
 * **Defensive Shield:** Pods hover beside the core, blocking shots until shattered.
 * **Aggressive Pattern:** Rapid sinusoidal hover and plasma bolt bombardment every 90 frames.
 * **Enraged Phase:** At $\le 50\%$ HP (9 HP), the core enters an enraged overload state: movement sweep widens and bolt fire interval drops to 60 frames.
-* **Campaign Victory:** Shattering the Master AI Core triggers a screen-shaking cascade of explosions followed by the Grand Victory fanfare and celebration screen!
+* **Victory Reward:** Shattering the Master AI Core unlocks **Zone 3 (Neon Overdrive)** in battery SRAM!
+
+### The AI Overlord Core (Stage 30 Final Boss) 🤖🔥
+* **Structure:** Colossal 3-phase multi-part final boss (30 HP) commanding orbital quantum satellites and gravitational distortion fields!
+* **Phase 1: Quantum Satellites & Force Field:**
+  * The Core is invulnerable behind a shimmering force field.
+  * Protected by two orbiting **Quantum Satellites** (15 HP each) that dynamically sweep across the playfield.
+  * Destroying both satellites shatters the force field with a massive concussive blast!
+* **Phase 2: Active Gravitational Singularity & Twin Lasers:**
+  * The exposed Core activates an internal **Gravitational Singularity Well**, curving balls toward it while firing twin seeking laser blasters at the paddle.
+* **Phase 3: Hyper Meltdown Overdrive:**
+  * At $\le 50\%$ HP (15 HP), the Core enters meltdown! The chassis flashes blazing crimson/gold, speed accelerates, and the core unleashes 3-way spread laser bolts while dropping falling **Cyber-Mines** that detonate on contact with the paddle!
+* **Grand Master Victory:**
+  * Shattering the AI Overlord Core triggers a 120-frame cascading core detonation sequence, screen-shaking explosion fanfare, and the **Grand Master Cyber Breaker** ending screen!
 
 ---
 
-## 🗺️ 20-Stage Progressive Campaign
+## 🗺️ 30-Stage Progressive Campaign
 
-The campaign spans two distinct visual sectors with dynamic 16-color background palette remapping:
+The campaign spans three distinct visual sectors with dynamic 16-color background palette remapping:
 
 ### Zone 1: Deep Space Sector (Stages 1–10)
 1. **Stage 1 (Initiation Grid):** Classic alternating colored rows; baseline paddle training.
@@ -108,15 +138,28 @@ The campaign spans two distinct visual sectors with dynamic 16-color background 
 19. **Stage 19 (Glitch Infiltration):** Extreme gauntlet combining TNT, regenerating cores, gold baffles, and speed hazards.
 20. **Stage 20 (The Cyber Nexus / Master AI Core):** Final showdown against the Master AI Core and its satellite defense pods!
 
+### Zone 3: Neon Overdrive Sector (Stages 21–30)
+21. **Stage 21 (Warp Gateway):** Dual Quantum Warp Portals flanking a central diamond of Magenta and Cyan bricks.
+22. **Stage 22 (Quantum Maze):** Vertical pillars of Gold bricks with portals acting as shortcuts behind the gold barriers.
+23. **Stage 23 (Event Horizon):** Circular ring of Silver & Cyan bricks orbiting a central Gravitational Singularity Well.
+24. **Stage 24 (Kinetic Overdrive):** Two high-speed horizontal moving Kinetic Bricks guarding upper TNT explosive caches.
+25. **Stage 25 (The Twin Vortex):** Dual Gravity Wells on left and right sides forming an S-curve figure-8 slingshot field.
+26. **Stage 26 (Self-Repair Citadel):** Dense wall of 3-hit self-repairing Regen Bricks with a portal leading behind them.
+27. **Stage 27 (Warp & Singularity):** Both dual Quantum Warp Portals AND a central Gravity Well; portals fling balls into the singularity!
+28. **Stage 28 (Minefield Run):** Central gravity well surrounded by volatile TNT bricks and moving kinetic drones.
+29. **Stage 29 (The Citadel Gates):** The ultimate pre-boss gauntlet: multi-layered Gold, Silver, Regen, TNT, and Portals.
+30. **Stage 30 (The AI Overlord Core):** Final Boss Chamber: 32x32 AI Core with orbiting Quantum Satellites and Meltdown Overdrive!
+
 ---
 
 ## 💾 SRAM Save & Stage Selector
 
 The cartridge battery SRAM (`0x0E000000`) stores persistent save data with checksum verification:
 * **High Score:** Persists your personal record across all play sessions.
-* **Max Stage Unlocked:** Automatically saves your highest reached stage ($1 \dots 20$).
-* **Title Screen Stage Select:** Press **D-Pad Left / Right** on the Title Screen to choose any unlocked starting stage. The title screen also displays the sector badge (`ZONE: SPACE` for Stages 1–10, `ZONE: CYBER` for Stages 11–20).
-* **Backwards Compatibility:** Legacy `BKBK100` save data is automatically detected and upgraded to `BKBK101`.
+* **Max Stage Unlocked:** Automatically saves your highest reached stage ($1 \dots 30$).
+* **Zone Completion Flags:** Tracks completion of Zone 1 (`zone1_cleared`), Zone 2 (`zone2_cleared`), and Zone 3 (`zone3_cleared`).
+* **Title Screen Stage Select:** Press **D-Pad Left / Right** on the Title Screen to choose any unlocked starting stage. The title screen displays the sector badge (`ZONE: SPACE` for Stages 1–10, `ZONE: CYBER` for Stages 11–20, `ZONE: NEON` for Stages 21–30).
+* **Backwards Compatibility:** Legacy `BKBK100` and `BKBK101` save data are automatically detected and safely migrated to `BKBK102`.
 
 ---
 

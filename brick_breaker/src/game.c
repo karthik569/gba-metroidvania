@@ -32,12 +32,31 @@ static PowerUpType s_pwr_toast_type = PWR_NONE;
 static u8 s_shield_hits = 0;
 static u16 s_mega_timer = 0;
 static Boss s_boss;
+static WarpPortal s_portals[MAX_WARP_PORTALS];
+static GravityWell s_gravity_wells[MAX_GRAVITY_WELLS];
 
 static Hazard s_hazards[MAX_HAZARDS];
 static Particle s_particles[MAX_PARTICLES];
 static u16 s_hazard_spawn_timer = 0;
 static u8 s_shake_timer = 0;
 static u8 s_shake_mag = 0;
+
+// Fast integer square root for gravitational vector integration
+static u16 int_sqrt(u32 val) {
+    u32 res = 0;
+    u32 bit = 1 << 30;
+    while (bit > val) bit >>= 2;
+    while (bit != 0) {
+        if (val >= res + bit) {
+            val -= res + bit;
+            res = (res >> 1) + bit;
+        } else {
+            res >>= 1;
+        }
+        bit >>= 2;
+    }
+    return (u16)res;
+}
 
 // 32-entry sine table for smooth horizontal hazard drone oscillation (amplitude ~16 px)
 static const s8 s_sin32[32] = {
@@ -364,6 +383,126 @@ static const u8 s_stage20[BRICK_ROWS][BRICK_COLS] = {
     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 
+// Stage 21: Warp Gateway (Dual Portals Flanking a Diamond of Magenta & Cyan)
+static const u8 s_stage21[BRICK_ROWS][BRICK_COLS] = {
+    {0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 6, 5, 6, 0, 0, 0, 0},
+    {0, 0, 0, 6, 5, 4, 5, 6, 0, 0, 0},
+    {0, 0, 6, 5, 4, 3, 4, 5, 6, 0, 0},
+    {0, 0, 0, 6, 5, 4, 5, 6, 0, 0, 0},
+    {0, 0, 0, 0, 6, 5, 6, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
+// Stage 22: Quantum Maze (Gold Brick Pillars with Portal Shortcuts)
+static const u8 s_stage22[BRICK_ROWS][BRICK_COLS] = {
+    {8, 7, 7, 8, 9, 6, 9, 8, 7, 7, 8},
+    {8, 6, 6, 8, 7, 7, 7, 8, 6, 6, 8},
+    {8, 5, 5, 8, 6, 6, 6, 8, 5, 5, 8},
+    {8, 8, 0, 8, 5, 5, 5, 8, 0, 8, 8},
+    {0, 8, 7, 8, 8, 0, 8, 8, 7, 8, 0},
+    {0, 8, 6, 6, 6, 6, 6, 6, 6, 8, 0},
+    {0, 8, 8, 8, 8, 8, 8, 8, 8, 8, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
+// Stage 23: Event Horizon (Orbital Ring Surrounding Gravitational Singularity)
+static const u8 s_stage23[BRICK_ROWS][BRICK_COLS] = {
+    {0, 0, 7, 7, 7, 7, 7, 7, 7, 0, 0},
+    {0, 7, 6, 6, 6, 6, 6, 6, 6, 7, 0},
+    {7, 6, 5, 0, 0, 0, 0, 0, 5, 6, 7},
+    {7, 6, 5, 0, 0, 0, 0, 0, 5, 6, 7},
+    {7, 6, 5, 0, 0, 0, 0, 0, 5, 6, 7},
+    {0, 7, 6, 6, 6, 6, 6, 6, 6, 7, 0},
+    {0, 0, 7, 7, 7, 7, 7, 7, 7, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
+// Stage 24: Kinetic Overdrive (Dual Moving Patrol Bricks Protecting TNT Vaults)
+static const u8 s_stage24[BRICK_ROWS][BRICK_COLS] = {
+    {7, 9, 7, 9, 7, 9, 7, 9, 7, 9, 7},
+    {6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6},
+    {5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+    {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3},
+    {7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
+// Stage 25: The Twin Vortex (Dual Singularities Creating S-Curve Slingshots)
+static const u8 s_stage25[BRICK_ROWS][BRICK_COLS] = {
+    {7, 7, 0, 0, 6, 6, 6, 0, 0, 7, 7},
+    {6, 0, 0, 0, 5, 5, 5, 0, 0, 0, 6},
+    {5, 0, 0, 0, 4, 9, 4, 0, 0, 0, 5},
+    {4, 4, 6, 0, 0, 0, 0, 0, 6, 4, 4},
+    {5, 0, 0, 0, 4, 9, 4, 0, 0, 0, 5},
+    {6, 0, 0, 0, 5, 5, 5, 0, 0, 0, 6},
+    {7, 7, 0, 0, 6, 6, 6, 0, 0, 7, 7},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
+// Stage 26: Self-Repair Citadel (Dense Regen Matrix Infiltrated by Portals)
+static const u8 s_stage26[BRICK_ROWS][BRICK_COLS] = {
+    {8, 8, 9, 6, 9, 6, 9, 6, 9, 8, 8},
+    {8, 7, 6, 5, 4, 3, 4, 5, 6, 7, 8},
+    {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10},
+    {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10},
+    {8, 8, 0, 0, 0, 0, 0, 0, 0, 8, 8},
+    {7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7},
+    {6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
+// Stage 27: Warp & Singularity (Portals Launching Directly into Gravitational Well)
+static const u8 s_stage27[BRICK_ROWS][BRICK_COLS] = {
+    {8, 7, 6, 5, 8, 9, 8, 5, 6, 7, 8},
+    {7, 6, 5, 0, 7, 6, 7, 0, 5, 6, 7},
+    {6, 5, 0, 0, 0, 0, 0, 0, 0, 5, 6},
+    {5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5},
+    {6, 5, 0, 0, 0, 0, 0, 0, 0, 5, 6},
+    {7, 6, 5, 0, 7, 6, 7, 0, 5, 6, 7},
+    {8, 7, 6, 5, 8, 9, 8, 5, 6, 7, 8},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
+// Stage 28: Minefield Run (High-Risk Gravitational TNT Slingshots & Moving Drones)
+static const u8 s_stage28[BRICK_ROWS][BRICK_COLS] = {
+    {9, 7, 9, 7, 9, 7, 9, 7, 9, 7, 9},
+    {7, 9, 7, 9, 0, 0, 0, 9, 7, 9, 7},
+    {9, 7, 9, 0, 0, 0, 0, 0, 9, 7, 9},
+    {7, 9, 0, 0, 0, 0, 0, 0, 0, 9, 7},
+    {9, 7, 9, 0, 0, 0, 0, 0, 9, 7, 9},
+    {7, 9, 7, 9, 0, 0, 0, 9, 7, 9, 7},
+    {9, 7, 9, 7, 9, 7, 9, 7, 9, 7, 9},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
+// Stage 29: The Citadel Gates (The Ultimate Pre-Boss Convergence Gauntlet)
+static const u8 s_stage29[BRICK_ROWS][BRICK_COLS] = {
+    {8, 7, 9, 10, 6, 9, 6, 10, 9, 7, 8},
+    {8, 10, 7, 9, 6, 7, 6, 9, 7, 10, 8},
+    {8, 8, 10, 7, 0, 0, 0, 7, 10, 8, 8},
+    {0, 8, 8, 0, 0, 0, 0, 0, 8, 8, 0},
+    {7, 10, 7, 0, 6, 9, 6, 0, 7, 10, 7},
+    {6, 7, 10, 9, 5, 6, 5, 9, 10, 7, 6},
+    {8, 8, 8, 8, 8, 0, 8, 8, 8, 8, 8},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
+// Stage 30: The AI Overlord Core (Colossal 3-Phase Multi-Part Final Boss Chamber)
+static const u8 s_stage30[BRICK_ROWS][BRICK_COLS] = {
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {8, 7, 0, 0, 0, 0, 0, 0, 0, 7, 8},
+    {8, 6, 0, 0, 7, 9, 7, 0, 0, 6, 8},
+    {7, 5, 0, 6, 9, 6, 9, 6, 0, 5, 7},
+    {6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
 // Floor Shield Barrier BG Tilemap Renderer
 static void render_shield_barrier(void) {
     u16 tile = TILE_EMPTY;
@@ -641,6 +780,7 @@ static void reset_paddle_and_ball(void) {
 
 static void init_boss(u8 stage) {
     s_boss.active = true;
+    s_boss.boss_type = stage;
     s_boss.phase = BOSS_PHASE_SHIELDED;
     s_boss.wave_timer = 0;
     s_boss.death_timer = 0;
@@ -648,6 +788,9 @@ static void init_boss(u8 stage) {
     s_boss.base_x = INT_TO_FP(80);
     s_boss.x = s_boss.base_x;
     s_boss.y = INT_TO_FP(20);
+
+    for (int b = 0; b < MAX_BOSS_BOLTS; b++) s_boss.bolts[b].active = false;
+    for (int m = 0; m < MAX_BOSS_MINES; m++) s_boss.mines[m].active = false;
 
     if (stage == 10) {
         // Sector 1 Guardian
@@ -663,7 +806,7 @@ static void init_boss(u8 stage) {
         s_boss.pods[1].x = INT_TO_FP(124);
         s_boss.pods[1].y = INT_TO_FP(24);
         s_boss.pods[1].hp = 4;
-    } else {
+    } else if (stage == 20) {
         // Stage 20: Master AI Core
         s_boss.max_hp = 18;
         s_boss.hp = 18;
@@ -677,9 +820,22 @@ static void init_boss(u8 stage) {
         s_boss.pods[1].x = INT_TO_FP(128);
         s_boss.pods[1].y = INT_TO_FP(24);
         s_boss.pods[1].hp = 6;
+    } else {
+        // Stage 30: The AI Overlord Core
+        s_boss.max_hp = 30;
+        s_boss.hp = 30;
+        s_boss.shoot_timer = 70;
+        s_boss.pods[0].active = true;
+        s_boss.pods[0].x = INT_TO_FP(44);
+        s_boss.pods[0].y = INT_TO_FP(24);
+        s_boss.pods[0].hp = 15;
+
+        s_boss.pods[1].active = true;
+        s_boss.pods[1].x = INT_TO_FP(132);
+        s_boss.pods[1].y = INT_TO_FP(24);
+        s_boss.pods[1].hp = 15;
     }
 
-    for (int b = 0; b < MAX_BOSS_BOLTS; b++) s_boss.bolts[b].active = false;
     bgm_boss_start();
 }
 
@@ -690,12 +846,27 @@ static void update_boss(void) {
 
     if (s_boss.phase == BOSS_PHASE_DYING) {
         s_boss.death_timer++;
-        if (s_boss.death_timer % 6 == 0) {
-            trigger_screen_shake(2, 6);
+        if (s_boss.death_timer % 5 == 0) {
+            trigger_screen_shake(3, 6);
             sfx_hazard_hit();
-            s16 rx = FP_TO_INT(s_boss.x) + (rng_next() % 24);
-            s16 ry = FP_TO_INT(s_boss.y) + (rng_next() % 24);
+            s16 rx = FP_TO_INT(s_boss.x) + (rng_next() % 28);
+            s16 ry = FP_TO_INT(s_boss.y) + (rng_next() % 28);
             spawn_particles(rx, ry, (rng_next() % 7) + 1);
+        }
+        if (s_boss.boss_type == 30 && s_boss.death_timer >= 120) {
+            s_boss.active = false;
+            s_score += 15000;
+            if (s_score > s_high_score) {
+                s_high_score = s_score;
+                save_set_high_score(s_high_score);
+            }
+            save_set_zone_cleared(3);
+            s_max_stage_unlocked = 30;
+            save_record_progress(s_high_score, s_max_stage_unlocked);
+            update_hud_text();
+            s_state = STATE_VICTORY;
+            s_state_timer = 0;
+            jingle_victory();
         }
         return;
     }
@@ -703,47 +874,133 @@ static void update_boss(void) {
     // Sinusoidal hover
     s_boss.wave_timer = (s_boss.wave_timer + 1) & 31;
     s16 offset = s_sin32[s_boss.wave_timer]; // -16 to +16
-    if (s_boss.phase == BOSS_PHASE_ENRAGED) offset = (offset * 3) / 2; // -24 to +24
+    if (s_boss.phase == BOSS_PHASE_ENRAGED) {
+        offset = (s_boss.boss_type == 30) ? (offset * 2) : ((offset * 3) / 2);
+    }
     s_boss.x = s_boss.base_x + INT_TO_FP(offset);
 
-    // Pods follow core
-    if (s_boss.pods[0].active) {
-        s_boss.pods[0].x = s_boss.x - INT_TO_FP(24);
-        s_boss.pods[0].y = s_boss.y + INT_TO_FP(4);
-    }
-    if (s_boss.pods[1].active) {
-        s_boss.pods[1].x = s_boss.x + INT_TO_FP(36);
-        s_boss.pods[1].y = s_boss.y + INT_TO_FP(4);
+    // Pods / Satellites position
+    if (s_boss.boss_type == 30 && s_boss.phase == BOSS_PHASE_SHIELDED) {
+        // Orbiting Quantum Satellites
+        s16 sat_off = s_sin32[(s_boss.wave_timer + 8) & 31];
+        if (s_boss.pods[0].active) {
+            s_boss.pods[0].x = s_boss.x - INT_TO_FP(28) + INT_TO_FP(sat_off / 3);
+            s_boss.pods[0].y = s_boss.y + INT_TO_FP(4) + INT_TO_FP(s_sin32[(s_boss.wave_timer + 16) & 31] / 4);
+        }
+        if (s_boss.pods[1].active) {
+            s_boss.pods[1].x = s_boss.x + INT_TO_FP(40) - INT_TO_FP(sat_off / 3);
+            s_boss.pods[1].y = s_boss.y + INT_TO_FP(4) - INT_TO_FP(s_sin32[(s_boss.wave_timer + 16) & 31] / 4);
+        }
+    } else {
+        if (s_boss.pods[0].active) {
+            s_boss.pods[0].x = s_boss.x - INT_TO_FP(24);
+            s_boss.pods[0].y = s_boss.y + INT_TO_FP(4);
+        }
+        if (s_boss.pods[1].active) {
+            s_boss.pods[1].x = s_boss.x + INT_TO_FP(36);
+            s_boss.pods[1].y = s_boss.y + INT_TO_FP(4);
+        }
     }
 
     // Phase transition if both pods destroyed
     if (s_boss.phase == BOSS_PHASE_SHIELDED && !s_boss.pods[0].active && !s_boss.pods[1].active) {
         s_boss.phase = BOSS_PHASE_EXPOSED;
         sfx_boss_pod_destroyed();
-        trigger_screen_shake(2, 10);
+        trigger_screen_shake(3, 14);
     }
 
     // Bolt firing
     if (s_boss.shoot_timer > 0) {
         s_boss.shoot_timer--;
     } else {
-        s_boss.shoot_timer = (s_boss.phase == BOSS_PHASE_ENRAGED) ? 60 : 100;
-        for (int b = 0; b < MAX_BOSS_BOLTS; b++) {
-            if (!s_boss.bolts[b].active) {
-                s_boss.bolts[b].active = true;
-                s_boss.bolts[b].x = s_boss.x + INT_TO_FP(12);
-                s_boss.bolts[b].y = s_boss.y + INT_TO_FP(28);
-                s_boss.bolts[b].vy = INT_TO_FP(1) + (INT_TO_FP(1) / 2); // 1.5 px/f
-                s_boss.bolts[b].vx = (rng_next() % 2 == 0) ? (INT_TO_FP(1)/4) : (-INT_TO_FP(1)/4);
-                sfx_boss_fire();
-                break;
+        if (s_boss.boss_type == 30) {
+            if (s_boss.phase == BOSS_PHASE_ENRAGED) {
+                // Phase 3: 3-way spread lasers
+                s_boss.shoot_timer = 55;
+                s_boss.bolts[0].active = true;
+                s_boss.bolts[0].x = s_boss.x + INT_TO_FP(4);
+                s_boss.bolts[0].y = s_boss.y + INT_TO_FP(28);
+                s_boss.bolts[0].vx = -INT_TO_FP(1) / 2;
+                s_boss.bolts[0].vy = INT_TO_FP(2);
+
+                s_boss.bolts[1].active = true;
+                s_boss.bolts[1].x = s_boss.x + INT_TO_FP(12);
+                s_boss.bolts[1].y = s_boss.y + INT_TO_FP(28);
+                s_boss.bolts[1].vx = 0;
+                s_boss.bolts[1].vy = INT_TO_FP(2) + (INT_TO_FP(1) / 4);
+
+                s_boss.bolts[2].active = true;
+                s_boss.bolts[2].x = s_boss.x + INT_TO_FP(20);
+                s_boss.bolts[2].y = s_boss.y + INT_TO_FP(28);
+                s_boss.bolts[2].vx = INT_TO_FP(1) / 2;
+                s_boss.bolts[2].vy = INT_TO_FP(2);
+                sfx_core_laser();
+            } else if (s_boss.phase == BOSS_PHASE_EXPOSED) {
+                // Phase 2: Twin seeking laser blasters
+                s_boss.shoot_timer = 70;
+                s_boss.bolts[0].active = true;
+                s_boss.bolts[0].x = s_boss.x + INT_TO_FP(6);
+                s_boss.bolts[0].y = s_boss.y + INT_TO_FP(28);
+                s_boss.bolts[0].vx = -INT_TO_FP(1) / 3;
+                s_boss.bolts[0].vy = INT_TO_FP(1) + (INT_TO_FP(1) / 2);
+
+                s_boss.bolts[1].active = true;
+                s_boss.bolts[1].x = s_boss.x + INT_TO_FP(18);
+                s_boss.bolts[1].y = s_boss.y + INT_TO_FP(28);
+                s_boss.bolts[1].vx = INT_TO_FP(1) / 3;
+                s_boss.bolts[1].vy = INT_TO_FP(1) + (INT_TO_FP(1) / 2);
+                sfx_core_laser();
+            } else {
+                // Phase 1: Occasional single bolt
+                s_boss.shoot_timer = 90;
+                for (int b = 0; b < MAX_BOSS_BOLTS; b++) {
+                    if (!s_boss.bolts[b].active) {
+                        s_boss.bolts[b].active = true;
+                        s_boss.bolts[b].x = s_boss.x + INT_TO_FP(12);
+                        s_boss.bolts[b].y = s_boss.y + INT_TO_FP(28);
+                        s_boss.bolts[b].vx = (rng_next() % 2 == 0) ? (INT_TO_FP(1)/4) : (-INT_TO_FP(1)/4);
+                        s_boss.bolts[b].vy = INT_TO_FP(1) + (INT_TO_FP(1) / 2);
+                        sfx_boss_fire();
+                        break;
+                    }
+                }
+            }
+
+            // Phase 3 Falling Cyber-Mines spawn
+            if (s_boss.phase == BOSS_PHASE_ENRAGED && (rng_next() % 100 < 45)) {
+                for (int m = 0; m < MAX_BOSS_MINES; m++) {
+                    if (!s_boss.mines[m].active) {
+                        s_boss.mines[m].active = true;
+                        s_boss.mines[m].x = s_boss.x + INT_TO_FP(6 + (rng_next() % 16));
+                        s_boss.mines[m].y = s_boss.y + INT_TO_FP(26);
+                        s_boss.mines[m].vy = INT_TO_FP(1);
+                        s_boss.mines[m].anim_frame = 0;
+                        sfx_mine_drop();
+                        break;
+                    }
+                }
+            }
+        } else {
+            // Stage 10 & Stage 20 standard bolt fire
+            s_boss.shoot_timer = (s_boss.phase == BOSS_PHASE_ENRAGED) ? 60 : 100;
+            for (int b = 0; b < MAX_BOSS_BOLTS; b++) {
+                if (!s_boss.bolts[b].active) {
+                    s_boss.bolts[b].active = true;
+                    s_boss.bolts[b].x = s_boss.x + INT_TO_FP(12);
+                    s_boss.bolts[b].y = s_boss.y + INT_TO_FP(28);
+                    s_boss.bolts[b].vy = INT_TO_FP(1) + (INT_TO_FP(1) / 2);
+                    s_boss.bolts[b].vx = (rng_next() % 2 == 0) ? (INT_TO_FP(1)/4) : (-INT_TO_FP(1)/4);
+                    sfx_boss_fire();
+                    break;
+                }
             }
         }
     }
 
-    // Update bolts
     s16 px = FP_TO_INT(s_paddle.x);
     s16 py = FP_TO_INT(s_paddle.y);
+
+    // Update bolts
     for (int b = 0; b < MAX_BOSS_BOLTS; b++) {
         if (!s_boss.bolts[b].active) continue;
         s_boss.bolts[b].x += s_boss.bolts[b].vx;
@@ -772,6 +1029,39 @@ static void update_boss(void) {
             }
         }
     }
+
+    // Update falling cyber-mines
+    for (int m = 0; m < MAX_BOSS_MINES; m++) {
+        if (!s_boss.mines[m].active) continue;
+        s_boss.mines[m].y += s_boss.mines[m].vy;
+        s_boss.mines[m].anim_frame = (s_boss.mines[m].anim_frame + 1) & 15;
+
+        s16 mx = FP_TO_INT(s_boss.mines[m].x);
+        s16 my = FP_TO_INT(s_boss.mines[m].y);
+
+        if (my > 160) {
+            s_boss.mines[m].active = false;
+            continue;
+        }
+
+        // Mine vs Paddle (explosive detonation)
+        if (my + 7 >= py && my <= py + 6 && mx + 7 >= px && mx <= px + s_paddle.width) {
+            s_boss.mines[m].active = false;
+            trigger_screen_shake(4, 16);
+            sfx_tnt_explode();
+            spawn_particles(mx, my, 1);
+            spawn_particles(mx + 4, my, 4);
+            s_lives--;
+            sfx_life_lost();
+            if (s_lives > 0) {
+                reset_paddle_and_ball();
+            } else {
+                s_state = STATE_GAME_OVER;
+                s_state_timer = 0;
+                return;
+            }
+        }
+    }
 }
 
 void game_load_stage(u8 stage_num) {
@@ -779,8 +1069,8 @@ void game_load_stage(u8 stage_num) {
     if (stage_num > MAX_STAGES) stage_num = MAX_STAGES;
     s_current_stage = stage_num;
 
-    // Load Zone 1 or Zone 2 palette
-    assets_load_zone_palette((stage_num >= 11) ? 2 : 1);
+    // Load Zone 1, Zone 2, or Zone 3 palette
+    assets_load_zone_palette((stage_num >= 21) ? 3 : (stage_num >= 11) ? 2 : 1);
 
     // Reset powerup states for fresh stage start
     s_shield_hits = 0;
@@ -810,6 +1100,16 @@ void game_load_stage(u8 stage_num) {
         case 18: layout = s_stage18; break;
         case 19: layout = s_stage19; break;
         case 20: layout = s_stage20; break;
+        case 21: layout = s_stage21; break;
+        case 22: layout = s_stage22; break;
+        case 23: layout = s_stage23; break;
+        case 24: layout = s_stage24; break;
+        case 25: layout = s_stage25; break;
+        case 26: layout = s_stage26; break;
+        case 27: layout = s_stage27; break;
+        case 28: layout = s_stage28; break;
+        case 29: layout = s_stage29; break;
+        case 30: layout = s_stage30; break;
         default: layout = s_stage1;  break;
     }
 
@@ -817,6 +1117,74 @@ void game_load_stage(u8 stage_num) {
     for (int k = 0; k < MAX_KINETIC_BRICKS; k++) s_kinetic_bricks[k].active = false;
     for (int t = 0; t < MAX_REGEN_TRACKERS; t++) s_regen_trackers[t].active = false;
     u8 regen_idx = 0;
+
+    // Reset Quantum Warp Portals & Singularity Wells
+    for (int p = 0; p < MAX_WARP_PORTALS; p++) {
+        s_portals[p].active = false;
+        s_portals[p].cooldown = 0;
+        s_portals[p].anim_frame = 0;
+    }
+    for (int w = 0; w < MAX_GRAVITY_WELLS; w++) {
+        s_gravity_wells[w].active = false;
+        s_gravity_wells[w].pulse_timer = 0;
+    }
+
+    // Configure Portals for Zone 3
+    if (stage_num == 21) {
+        s_portals[0].active = true; s_portals[0].x = INT_TO_FP(20); s_portals[0].y = INT_TO_FP(32);
+        s_portals[1].active = true; s_portals[1].x = INT_TO_FP(156); s_portals[1].y = INT_TO_FP(32);
+    } else if (stage_num == 22) {
+        s_portals[0].active = true; s_portals[0].x = INT_TO_FP(18); s_portals[0].y = INT_TO_FP(72);
+        s_portals[1].active = true; s_portals[1].x = INT_TO_FP(156); s_portals[1].y = INT_TO_FP(16);
+    } else if (stage_num == 26) {
+        s_portals[0].active = true; s_portals[0].x = INT_TO_FP(18); s_portals[0].y = INT_TO_FP(80);
+        s_portals[1].active = true; s_portals[1].x = INT_TO_FP(92); s_portals[1].y = INT_TO_FP(20);
+    } else if (stage_num == 27) {
+        s_portals[0].active = true; s_portals[0].x = INT_TO_FP(20); s_portals[0].y = INT_TO_FP(32);
+        s_portals[1].active = true; s_portals[1].x = INT_TO_FP(156); s_portals[1].y = INT_TO_FP(64);
+    } else if (stage_num == 29) {
+        s_portals[0].active = true; s_portals[0].x = INT_TO_FP(16); s_portals[0].y = INT_TO_FP(72);
+        s_portals[1].active = true; s_portals[1].x = INT_TO_FP(160); s_portals[1].y = INT_TO_FP(24);
+    }
+
+    // Configure Gravitational Singularity Wells for Zone 3
+    if (stage_num == 23) {
+        s_gravity_wells[0].active = true;
+        s_gravity_wells[0].x = INT_TO_FP(96);
+        s_gravity_wells[0].y = INT_TO_FP(44);
+        s_gravity_wells[0].radius = INT_TO_FP(48);
+        s_gravity_wells[0].strength = 22;
+    } else if (stage_num == 25) {
+        s_gravity_wells[0].active = true;
+        s_gravity_wells[0].x = INT_TO_FP(44);
+        s_gravity_wells[0].y = INT_TO_FP(48);
+        s_gravity_wells[0].radius = INT_TO_FP(48);
+        s_gravity_wells[0].strength = 22;
+
+        s_gravity_wells[1].active = true;
+        s_gravity_wells[1].x = INT_TO_FP(148);
+        s_gravity_wells[1].y = INT_TO_FP(48);
+        s_gravity_wells[1].radius = INT_TO_FP(48);
+        s_gravity_wells[1].strength = 22;
+    } else if (stage_num == 27) {
+        s_gravity_wells[0].active = true;
+        s_gravity_wells[0].x = INT_TO_FP(96);
+        s_gravity_wells[0].y = INT_TO_FP(48);
+        s_gravity_wells[0].radius = INT_TO_FP(48);
+        s_gravity_wells[0].strength = 22;
+    } else if (stage_num == 28) {
+        s_gravity_wells[0].active = true;
+        s_gravity_wells[0].x = INT_TO_FP(96);
+        s_gravity_wells[0].y = INT_TO_FP(40);
+        s_gravity_wells[0].radius = INT_TO_FP(48);
+        s_gravity_wells[0].strength = 22;
+    } else if (stage_num == 29) {
+        s_gravity_wells[0].active = true;
+        s_gravity_wells[0].x = INT_TO_FP(96);
+        s_gravity_wells[0].y = INT_TO_FP(56);
+        s_gravity_wells[0].radius = INT_TO_FP(48);
+        s_gravity_wells[0].strength = 22;
+    }
 
     s_destructible_remaining = 0;
     for (u8 r = 0; r < BRICK_ROWS; r++) {
@@ -887,14 +1255,44 @@ void game_load_stage(u8 stage_num) {
         s_kinetic_bricks[1].y = INT_TO_FP(64);
         s_kinetic_bricks[1].vx = - (INT_TO_FP(1) + (INT_TO_FP(1) / 4));
         s_kinetic_bricks[1].hp = 2;
+    } else if (stage_num == 24) {
+        s_kinetic_bricks[0].active = true;
+        s_kinetic_bricks[0].x = INT_TO_FP(24);
+        s_kinetic_bricks[0].y = INT_TO_FP(40);
+        s_kinetic_bricks[0].vx = INT_TO_FP(1) + (INT_TO_FP(1) / 2);
+        s_kinetic_bricks[0].hp = 2;
+
+        s_kinetic_bricks[1].active = true;
+        s_kinetic_bricks[1].x = INT_TO_FP(136);
+        s_kinetic_bricks[1].y = INT_TO_FP(64);
+        s_kinetic_bricks[1].vx = - (INT_TO_FP(1) + (INT_TO_FP(1) / 2));
+        s_kinetic_bricks[1].hp = 2;
+    } else if (stage_num == 28) {
+        s_kinetic_bricks[0].active = true;
+        s_kinetic_bricks[0].x = INT_TO_FP(32);
+        s_kinetic_bricks[0].y = INT_TO_FP(68);
+        s_kinetic_bricks[0].vx = INT_TO_FP(1) + (INT_TO_FP(1) / 4);
+        s_kinetic_bricks[0].hp = 2;
+
+        s_kinetic_bricks[1].active = true;
+        s_kinetic_bricks[1].x = INT_TO_FP(128);
+        s_kinetic_bricks[1].y = INT_TO_FP(76);
+        s_kinetic_bricks[1].vx = - (INT_TO_FP(1) + (INT_TO_FP(1) / 4));
+        s_kinetic_bricks[1].hp = 2;
     }
 
-    // Boss initialization on Stage 10 & Stage 20
-    if (stage_num == 10 || stage_num == 20) {
+    // Boss initialization on Stage 10, Stage 20 & Stage 30
+    if (stage_num == 10 || stage_num == 20 || stage_num == 30) {
         init_boss(stage_num);
+        bgm_zone3_stop();
     } else {
         s_boss.active = false;
         bgm_boss_stop();
+        if (stage_num >= 21) {
+            bgm_zone3_start();
+        } else {
+            bgm_zone3_stop();
+        }
     }
 
     reset_paddle_and_ball();
@@ -1217,6 +1615,24 @@ static void update_playing(void) {
         bgm_boss_tick(s_boss.phase == BOSS_PHASE_ENRAGED);
     }
 
+    // Portal and Gravity Well visual timers
+    for (int p = 0; p < MAX_WARP_PORTALS; p++) {
+        if (s_portals[p].active) {
+            s_portals[p].anim_frame = (s_portals[p].anim_frame + 1) & 15;
+            if (s_portals[p].cooldown > 0) s_portals[p].cooldown--;
+        }
+    }
+    for (int w = 0; w < MAX_GRAVITY_WELLS; w++) {
+        if (s_gravity_wells[w].active) {
+            s_gravity_wells[w].pulse_timer = (s_gravity_wells[w].pulse_timer + 1) & 31;
+        }
+    }
+
+    // Zone 3 Neon Overdrive Synth BGM
+    if (s_current_stage >= 21 && !s_boss.active) {
+        bgm_zone3_tick();
+    }
+
     s16 px = FP_TO_INT(s_paddle.x);
     s16 py = FP_TO_INT(s_paddle.y);
 
@@ -1238,6 +1654,8 @@ static void update_playing(void) {
         if (!s_balls[b].active) continue;
         active_balls_count++;
 
+        if (s_balls[b].portal_cooldown > 0) s_balls[b].portal_cooldown--;
+
         if (s_balls[b].stuck_to_paddle) {
             s_balls[b].x = s_paddle.x + INT_TO_FP(s_balls[b].stuck_offset_x);
             s_balls[b].y = s_paddle.y - INT_TO_FP(8);
@@ -1250,6 +1668,103 @@ static void update_playing(void) {
                 sfx_bounce();
             }
             continue;
+        }
+
+        // 2a. Gravitational Singularity Wells Influence
+        for (int w = 0; w < MAX_GRAVITY_WELLS; w++) {
+            if (!s_gravity_wells[w].active) continue;
+            s16 wx = FP_TO_INT(s_gravity_wells[w].x);
+            s16 wy = FP_TO_INT(s_gravity_wells[w].y);
+            s16 cur_bx = FP_TO_INT(s_balls[b].x) + 4;
+            s16 cur_by = FP_TO_INT(s_balls[b].y) + 4;
+            s16 dx = wx - cur_bx;
+            s16 dy = wy - cur_by;
+            s32 dist_sq = (s32)dx * dx + (s32)dy * dy;
+            if (dist_sq <= 2304 && dist_sq > 16) { // 48px radius
+                u16 dist = int_sqrt((u32)dist_sq);
+                if (dist > 0) {
+                    fixed_t g_acc = s_gravity_wells[w].strength;
+                    fixed_t fx = ((fixed_t)dx * g_acc) / dist;
+                    fixed_t fy = ((fixed_t)dy * g_acc) / dist;
+                    s_balls[b].vx += fx;
+                    s_balls[b].vy += fy;
+
+                    fixed_t max_v = INT_TO_FP(3) + (INT_TO_FP(1) / 2);
+                    if (s_balls[b].vx > max_v) s_balls[b].vx = max_v;
+                    if (s_balls[b].vx < -max_v) s_balls[b].vx = -max_v;
+                    if (s_balls[b].vy > max_v) s_balls[b].vy = max_v;
+                    if (s_balls[b].vy < -max_v) s_balls[b].vy = -max_v;
+
+                    if (dist < 18 && (s_state_timer % 32 == 0)) {
+                        sfx_gravity_pull();
+                        spawn_particles(wx, wy, 6);
+                    }
+                }
+            }
+        }
+
+        // 2b. Stage 30 AI Overlord Core Singularity (Phase 2 & 3)
+        if (s_boss.active && s_boss.boss_type == 30 && s_boss.phase >= BOSS_PHASE_EXPOSED && s_boss.phase != BOSS_PHASE_DYING) {
+            s16 wx = FP_TO_INT(s_boss.x) + 16;
+            s16 wy = FP_TO_INT(s_boss.y) + 16;
+            s16 cur_bx = FP_TO_INT(s_balls[b].x) + 4;
+            s16 cur_by = FP_TO_INT(s_balls[b].y) + 4;
+            s16 dx = wx - cur_bx;
+            s16 dy = wy - cur_by;
+            s32 dist_sq = (s32)dx * dx + (s32)dy * dy;
+            if (dist_sq <= 3600 && dist_sq > 25) { // 60px radius
+                u16 dist = int_sqrt((u32)dist_sq);
+                if (dist > 0) {
+                    fixed_t g_acc = (s_boss.phase == BOSS_PHASE_ENRAGED) ? 30 : 22;
+                    fixed_t fx = ((fixed_t)dx * g_acc) / dist;
+                    fixed_t fy = ((fixed_t)dy * g_acc) / dist;
+                    s_balls[b].vx += fx;
+                    s_balls[b].vy += fy;
+
+                    fixed_t max_v = INT_TO_FP(3) + (INT_TO_FP(1) / 2);
+                    if (s_balls[b].vx > max_v) s_balls[b].vx = max_v;
+                    if (s_balls[b].vx < -max_v) s_balls[b].vx = -max_v;
+                    if (s_balls[b].vy > max_v) s_balls[b].vy = max_v;
+                    if (s_balls[b].vy < -max_v) s_balls[b].vy = -max_v;
+
+                    if (dist < 24 && (s_state_timer % 30 == 0)) {
+                        sfx_gravity_pull();
+                    }
+                }
+            }
+        }
+
+        // 2c. Quantum Warp Portals Teleportation
+        if (s_portals[0].active && s_portals[1].active && s_balls[b].portal_cooldown == 0) {
+            s16 cur_bx = FP_TO_INT(s_balls[b].x) + 4;
+            s16 cur_by = FP_TO_INT(s_balls[b].y) + 4;
+            for (int p = 0; p < 2; p++) {
+                s16 px_portal = FP_TO_INT(s_portals[p].x) + 8;
+                s16 py_portal = FP_TO_INT(s_portals[p].y) + 8;
+                s16 pdx = cur_bx - px_portal;
+                s16 pdy = cur_by - py_portal;
+                if (pdx >= -8 && pdx <= 8 && pdy >= -8 && pdy <= 8) {
+                    int dst = 1 - p;
+                    s16 dst_x = FP_TO_INT(s_portals[dst].x) + 8;
+                    s16 dst_y = FP_TO_INT(s_portals[dst].y) + 8;
+
+                    s16 off_x = (s_balls[b].vx >= 0) ? 12 : -12;
+                    s16 off_y = (s_balls[b].vy >= 0) ? 12 : -12;
+                    s_balls[b].x = INT_TO_FP(dst_x + off_x - 4);
+                    s_balls[b].y = INT_TO_FP(dst_y + off_y - 4);
+
+                    // 10% chromatic velocity boost
+                    s_balls[b].vx += s_balls[b].vx / 8;
+                    s_balls[b].vy += s_balls[b].vy / 8;
+                    s_balls[b].portal_cooldown = 24;
+
+                    sfx_portal_warp();
+                    spawn_particles(px_portal, py_portal, (p == 0) ? 6 : 5);
+                    spawn_particles(dst_x, dst_y, (dst == 0) ? 6 : 5);
+                    trigger_screen_shake(1, 4);
+                    break;
+                }
+            }
         }
 
         fixed_t prev_x = s_balls[b].x;
@@ -1416,7 +1931,7 @@ static void update_playing(void) {
                             sfx_boss_pod_destroyed();
                             trigger_screen_shake(2, 10);
                             spawn_particles(px_pod + 8, py_pod + 8, 7);
-                            s_score += 1000;
+                            s_score += (s_boss.boss_type == 30) ? 2000 : 1000;
                         }
                         break;
                     }
@@ -1443,7 +1958,7 @@ static void update_playing(void) {
                     if (s_boss.hp <= 0) {
                         s_boss.phase = BOSS_PHASE_DYING;
                         s_boss.death_timer = 0;
-                        s_score += 5000;
+                        s_score += (s_boss.boss_type == 30) ? 15000 : 5000;
                         sfx_boss_defeat();
                         bgm_boss_stop();
                     }
@@ -1459,6 +1974,21 @@ static void update_playing(void) {
                         s_boss.bolts[bt].active = false;
                         sfx_hazard_hit();
                         spawn_particles(bbx, bby, 0);
+                    }
+                }
+            }
+
+            // Ball vs Boss Mines (destroy cyber-mine on contact)
+            for (int m = 0; m < MAX_BOSS_MINES; m++) {
+                if (s_boss.mines[m].active) {
+                    s16 bmx = FP_TO_INT(s_boss.mines[m].x);
+                    s16 bmy = FP_TO_INT(s_boss.mines[m].y);
+                    if (cur_bx + 7 >= bmx && cur_bx <= bmx + 7 && cur_by + 7 >= bmy && cur_by <= bmy + 7) {
+                        s_boss.mines[m].active = false;
+                        sfx_hazard_hit();
+                        spawn_particles(bmx, bmy, 4);
+                        s_score += 200;
+                        update_hud_text();
                     }
                 }
             }
@@ -1674,7 +2204,7 @@ static void update_playing(void) {
                             sfx_boss_pod_destroyed();
                             trigger_screen_shake(2, 10);
                             spawn_particles(px_pod + 8, py_pod + 8, 7);
-                            s_score += 1000;
+                            s_score += (s_boss.boss_type == 30) ? 2000 : 1000;
                         }
                         break;
                     }
@@ -1699,7 +2229,7 @@ static void update_playing(void) {
                     if (s_boss.hp <= 0) {
                         s_boss.phase = BOSS_PHASE_DYING;
                         s_boss.death_timer = 0;
-                        s_score += 5000;
+                        s_score += (s_boss.boss_type == 30) ? 15000 : 5000;
                         sfx_boss_defeat();
                         bgm_boss_stop();
                     }
@@ -1717,6 +2247,24 @@ static void update_playing(void) {
                         s_boss.bolts[bt].active = false;
                         sfx_hazard_hit();
                         spawn_particles(bbx, bby, 0);
+                        break;
+                    }
+                }
+            }
+            if (!s_lasers[i].active) continue;
+
+            // Laser vs Boss Mines
+            for (int m = 0; m < MAX_BOSS_MINES; m++) {
+                if (s_boss.mines[m].active) {
+                    s16 bmx = FP_TO_INT(s_boss.mines[m].x);
+                    s16 bmy = FP_TO_INT(s_boss.mines[m].y);
+                    if (lx + 6 >= bmx && lx <= bmx + 7 && ly + 7 >= bmy && ly <= bmy + 7) {
+                        s_lasers[i].active = false;
+                        s_boss.mines[m].active = false;
+                        sfx_hazard_hit();
+                        spawn_particles(bmx, bmy, 4);
+                        s_score += 200;
+                        update_hud_text();
                         break;
                     }
                 }
@@ -1922,6 +2470,7 @@ static void update_playing(void) {
         update_hud_text();
 
         if (s_current_stage >= MAX_STAGES) {
+            save_set_zone_cleared(3);
             s_state = STATE_VICTORY;
             jingle_victory();
         } else {
@@ -2002,9 +2551,23 @@ void game_update(void) {
 
         case STATE_VICTORY:
             if (s_state_timer == 1) {
-                draw_text(3, 11, "VICTORY! ALL CLEAR");
+                if (s_current_stage >= 30) {
+                    draw_text(4, 4, "GRAND MASTER");
+                    draw_text(2, 6, "CYBER BREAKER!");
+                    draw_text(3, 8, "AI CORE OVERLOAD");
+                    draw_text(2, 10, "ZONE 3 CONQUERED");
+                    draw_text(4, 12, "ALL 30 CLEAR!");
+                } else {
+                    draw_text(3, 11, "VICTORY! ALL CLEAR");
+                }
             }
-            if (s_state_timer > 200 && (key_was_pressed(KEY_START) || key_was_pressed(KEY_A))) {
+            bgm_victory_tick();
+            if (s_state_timer > 220 && (key_was_pressed(KEY_START) || key_was_pressed(KEY_A))) {
+                draw_text(4, 4, "            ");
+                draw_text(2, 6, "              ");
+                draw_text(3, 8, "                ");
+                draw_text(2, 10, "                ");
+                draw_text(4, 12, "             ");
                 draw_text(3, 11, "                  ");
                 init_background_playfield();
                 s_state = STATE_TITLE;
@@ -2040,7 +2603,9 @@ void game_render(void) {
         st_buf[12] = '\0';
         draw_text(6, 9, st_buf);
 
-        if (s_selected_stage >= 11) {
+        if (s_selected_stage >= 21) {
+            draw_text(6, 11, "ZONE: NEON ");
+        } else if (s_selected_stage >= 11) {
             draw_text(6, 11, "ZONE: CYBER");
         } else {
             draw_text(6, 11, "ZONE: SPACE");
@@ -2151,7 +2716,28 @@ void game_render(void) {
         oam_set(sid++, px_pt, py_pt, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_PARTICLE, s_particles[i].pal, false, false);
     }
 
-    // 8. Render Boss Entities (Stage 10 & Stage 20)
+    // 7b. Render Quantum Warp Portals (16x16)
+    if (s_portals[0].active) {
+        s16 p0x = FP_TO_INT(s_portals[0].x);
+        s16 p0y = FP_TO_INT(s_portals[0].y);
+        oam_set(sid++, p0x, p0y, ATTR0_SQUARE, ATTR1_SIZE_16, SPRITE_TILE_PORTAL_A, 0, false, false);
+    }
+    if (s_portals[1].active) {
+        s16 p1x = FP_TO_INT(s_portals[1].x);
+        s16 p1y = FP_TO_INT(s_portals[1].y);
+        oam_set(sid++, p1x, p1y, ATTR0_SQUARE, ATTR1_SIZE_16, SPRITE_TILE_PORTAL_B, 0, false, false);
+    }
+
+    // 7c. Render Gravitational Singularity Wells (16x16)
+    for (int w = 0; w < MAX_GRAVITY_WELLS; w++) {
+        if (s_gravity_wells[w].active) {
+            s16 gx = FP_TO_INT(s_gravity_wells[w].x) - 8;
+            s16 gy = FP_TO_INT(s_gravity_wells[w].y) - 8;
+            oam_set(sid++, gx, gy, ATTR0_SQUARE, ATTR1_SIZE_16, SPRITE_TILE_GRAVITY_WELL, 0, false, false);
+        }
+    }
+
+    // 8. Render Boss Entities (Stage 10, Stage 20 & Stage 30)
     if (s_boss.active) {
         s16 boss_x = FP_TO_INT(s_boss.x);
         s16 boss_y = FP_TO_INT(s_boss.y);
@@ -2160,16 +2746,17 @@ void game_render(void) {
                      (s_boss.phase == BOSS_PHASE_DYING && ((s_boss.death_timer / 4) % 2 == 0));
 
         if (!flash) {
-            u8 boss_pal = (s_boss.phase == BOSS_PHASE_ENRAGED) ? 1 : 0;
+            u8 boss_pal = (s_boss.phase == BOSS_PHASE_ENRAGED) ? ((s_state_timer % 4 < 2) ? 1 : 4) : 0;
             oam_set(sid++, boss_x, boss_y, ATTR0_SQUARE, ATTR1_SIZE_32, SPRITE_TILE_BOSS_CORE, boss_pal, false, false);
         }
 
         // Render Satellite Defense Pods
+        u16 pod_tile = (s_boss.boss_type == 30) ? SPRITE_TILE_BOSS_SATELLITE : SPRITE_TILE_BOSS_POD;
         for (int p = 0; p < MAX_BOSS_PODS; p++) {
             if (s_boss.pods[p].active) {
                 s16 px_pod = FP_TO_INT(s_boss.pods[p].x);
                 s16 py_pod = FP_TO_INT(s_boss.pods[p].y);
-                oam_set(sid++, px_pod, py_pod, ATTR0_SQUARE, ATTR1_SIZE_16, SPRITE_TILE_BOSS_POD, 0, false, false);
+                oam_set(sid++, px_pod, py_pod, ATTR0_SQUARE, ATTR1_SIZE_16, pod_tile, 0, false, false);
             }
         }
 
@@ -2179,6 +2766,15 @@ void game_render(void) {
                 s16 bbx = FP_TO_INT(s_boss.bolts[b].x);
                 s16 bby = FP_TO_INT(s_boss.bolts[b].y);
                 oam_set(sid++, bbx, bby, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_BOSS_BOLT, 0, false, false);
+            }
+        }
+
+        // Render Falling Cyber-Mines (Stage 30 Meltdown)
+        for (int m = 0; m < MAX_BOSS_MINES; m++) {
+            if (s_boss.mines[m].active) {
+                s16 mx = FP_TO_INT(s_boss.mines[m].x);
+                s16 my = FP_TO_INT(s_boss.mines[m].y);
+                oam_set(sid++, mx, my, ATTR0_SQUARE, ATTR1_SIZE_8, SPRITE_TILE_BOSS_MINE, 0, false, false);
             }
         }
     }

@@ -30,7 +30,7 @@ void sfx_barrier_hit(void);
 void sfx_barrier_shatter(void);
 void sfx_mega_smash(void);
 
-// Boss Audio Suite (Stage 10 & Stage 20)
+// Boss Audio Suite (Stage 10, Stage 20 & Stage 30)
 void sfx_boss_fire(void);
 void sfx_paddle_stun(void);
 void sfx_boss_pod_destroyed(void);
@@ -39,6 +39,16 @@ void sfx_boss_defeat(void);
 void bgm_boss_start(void);
 void bgm_boss_stop(void);
 void bgm_boss_tick(bool enraged);
+
+// Zone 3 Audio Suite (Neon Overdrive)
+void sfx_portal_warp(void);
+void sfx_gravity_pull(void);
+void sfx_core_laser(void);
+void sfx_mine_drop(void);
+void bgm_zone3_start(void);
+void bgm_zone3_stop(void);
+void bgm_zone3_tick(void);
+void bgm_victory_tick(void);
 
 #ifdef __cplusplus
 }

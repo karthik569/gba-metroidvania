@@ -19,11 +19,14 @@
 #define MAX_LASERS          4
 #define MAX_HAZARDS         2
 #define MAX_PARTICLES       12
-#define MAX_STAGES          20
+#define MAX_STAGES          30
 #define MAX_KINETIC_BRICKS  2
 #define MAX_REGEN_TRACKERS  16
 #define MAX_BOSS_BOLTS      4
 #define MAX_BOSS_PODS       2
+#define MAX_WARP_PORTALS    2
+#define MAX_GRAVITY_WELLS   2
+#define MAX_BOSS_MINES      3
 
 // Brick Types
 #define BRK_EMPTY           0
@@ -80,6 +83,7 @@ typedef struct {
     bool stuck_to_paddle;
     s16 stuck_offset_x;
     u8 speed_tier;
+    u8 portal_cooldown;
 } Ball;
 
 typedef struct {
@@ -153,6 +157,28 @@ typedef struct {
 
 typedef struct {
     fixed_t x, y;
+    fixed_t vy;
+    bool active;
+    u8 anim_frame;
+} BossMine;
+
+typedef struct {
+    fixed_t x, y;
+    u8 cooldown;
+    bool active;
+    u8 anim_frame;
+} WarpPortal;
+
+typedef struct {
+    fixed_t x, y;
+    fixed_t radius;
+    fixed_t strength;
+    bool active;
+    u8 pulse_timer;
+} GravityWell;
+
+typedef struct {
+    fixed_t x, y;
     fixed_t base_x;
     u16 wave_timer;
     BossPhase phase;
@@ -162,8 +188,10 @@ typedef struct {
     u16 shoot_timer;
     u8 death_timer;
     bool active;
+    u8 boss_type;       // 10: Guardian, 20: AI Core, 30: AI Overlord Core
     BossPod pods[MAX_BOSS_PODS];
     BossBolt bolts[MAX_BOSS_BOLTS];
+    BossMine mines[MAX_BOSS_MINES];
 } Boss;
 
 #ifdef __cplusplus
