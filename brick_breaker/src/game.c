@@ -383,7 +383,9 @@ void game_start_new(void) {
     s_lives = 3;
     game_load_stage(1);
     s_state = STATE_PLAYING;
+    sfx_powerup_get();
 }
+
 
 // -----------------------------------------------------------------
 // Power-Up Drops & Triggers
@@ -943,6 +945,7 @@ void game_update(void) {
             if (key_was_pressed(KEY_START)) {
                 s_state = STATE_PAUSED;
                 draw_text(6, 11, "PAUSED");
+                sfx_bounce();
             } else {
                 update_playing();
             }
@@ -952,6 +955,7 @@ void game_update(void) {
             if (key_was_pressed(KEY_START)) {
                 s_state = STATE_PLAYING;
                 draw_text(6, 11, "      ");
+                sfx_bounce();
             }
             break;
 

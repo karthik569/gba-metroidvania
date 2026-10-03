@@ -38,6 +38,7 @@
 #define REG_SOUNDCNT_L  (*(vu16*)(IO_BASE + 0x0080))
 #define REG_SOUNDCNT_H  (*(vu16*)(IO_BASE + 0x0082))
 #define REG_SOUNDCNT_X  (*(vu16*)(IO_BASE + 0x0084))
+#define REG_SOUNDBIAS   (*(vu16*)(IO_BASE + 0x0088))
 #define REG_SOUND1CNT_L (*(vu16*)(IO_BASE + 0x0060))
 #define REG_SOUND1CNT_H (*(vu16*)(IO_BASE + 0x0062))
 #define REG_SOUND1CNT_X (*(vu16*)(IO_BASE + 0x0064))
