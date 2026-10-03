@@ -65,6 +65,7 @@ typedef struct {
 typedef struct {
     fixed_t x, y;
     fixed_t vx, vy;
+    fixed_t speed;
     bool active;
     bool stuck_to_paddle;
     s16 stuck_offset_x;

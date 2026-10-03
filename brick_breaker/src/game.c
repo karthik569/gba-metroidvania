@@ -225,6 +225,54 @@ void game_init(void) {
     s_state_timer = 0;
 }
 
+#define BALL_BASE_SPEED     480  // 1.875 px/f in 8.8 fixed point (smooth & consistent)
+#define BALL_SLOW_SPEED     384  // 1.500 px/f (when [S] slow power-up active)
+
+// Set ball reflection vector based on contact offset from paddle center, guaranteeing constant speed
+static void apply_ball_deflection(Ball* ball, s16 hit_offset, s16 half_w) {
+    if (half_w <= 0) half_w = 16;
+    s16 ratio = (hit_offset * 100) / half_w; // -100 to +100
+    fixed_t spd = ball->speed;
+    if (spd <= 0) spd = BALL_BASE_SPEED;
+
+    fixed_t vx = 0;
+    fixed_t vy = -spd;
+
+    if (ratio < -75) {
+        // Sharp Left (~60 degrees): 87% H, 50% V
+        vx = - (spd * 87) / 100;
+        vy = - (spd * 50) / 100;
+    } else if (ratio < -35) {
+        // Mid Left (~45 degrees): 71% H, 71% V
+        vx = - (spd * 71) / 100;
+        vy = - (spd * 71) / 100;
+    } else if (ratio < -10) {
+        // Shallow Left (~25 degrees): 42% H, 91% V
+        vx = - (spd * 42) / 100;
+        vy = - (spd * 91) / 100;
+    } else if (ratio <= 10) {
+        // Center (~10 degrees with slight directional bias so ball never loops vertically)
+        s16 dir = (s_paddle.vx > 0) ? 1 : ((s_paddle.vx < 0) ? -1 : ((ball->vx >= 0) ? 1 : -1));
+        vx = dir * (spd * 17) / 100;
+        vy = - (spd * 98) / 100;
+    } else if (ratio <= 35) {
+        // Shallow Right (~25 degrees)
+        vx = (spd * 42) / 100;
+        vy = - (spd * 91) / 100;
+    } else if (ratio <= 75) {
+        // Mid Right (~45 degrees)
+        vx = (spd * 71) / 100;
+        vy = - (spd * 71) / 100;
+    } else {
+        // Sharp Right (~60 degrees)
+        vx = (spd * 87) / 100;
+        vy = - (spd * 50) / 100;
+    }
+
+    ball->vx = vx;
+    ball->vy = vy;
+}
+
 static void reset_paddle_and_ball(void) {
     s_paddle.width = 32;
     s_paddle.x = INT_TO_FP(PLAYFIELD_X_MIN + (PLAYFIELD_X_MAX - PLAYFIELD_X_MIN - 32) / 2);
@@ -242,9 +290,10 @@ static void reset_paddle_and_ball(void) {
     s_balls[0].stuck_offset_x = 12; // Centered on 32px paddle
     s_balls[0].x = s_paddle.x + INT_TO_FP(12);
     s_balls[0].y = s_paddle.y - INT_TO_FP(8);
-    s_balls[0].vx = INT_TO_FP(1);
-    s_balls[0].vy = -INT_TO_FP(2);
+    s_balls[0].speed = BALL_BASE_SPEED;
     s_balls[0].speed_tier = 0;
+    s_balls[0].vx = (BALL_BASE_SPEED * 42) / 100;
+    s_balls[0].vy = - (BALL_BASE_SPEED * 91) / 100;
 
     s_balls[1].active = false;
     s_balls[2].active = false;
@@ -339,18 +388,21 @@ static void apply_powerup(PowerUpType type) {
             s_paddle.catch_equipped = false;
             break;
         case PWR_MULTI:
-            // Spawn 2 extra balls from active ball
+            // Spawn 2 extra balls from active ball with exact consistent speed
             for (int i = 0; i < MAX_BALLS; i++) {
                 if (s_balls[i].active) {
+                    fixed_t cur_spd = s_balls[i].speed;
+                    if (cur_spd <= 0) cur_spd = BALL_BASE_SPEED;
                     for (int j = 0; j < MAX_BALLS; j++) {
                         if (!s_balls[j].active) {
                             s_balls[j].active = true;
                             s_balls[j].stuck_to_paddle = false;
                             s_balls[j].x = s_balls[i].x;
                             s_balls[j].y = s_balls[i].y;
-                            s_balls[j].vx = (j == 1) ? -INT_TO_FP(2) : INT_TO_FP(2);
-                            s_balls[j].vy = -INT_TO_FP(2);
+                            s_balls[j].speed = cur_spd;
                             s_balls[j].speed_tier = s_balls[i].speed_tier;
+                            s_balls[j].vx = (j == 1) ? - (cur_spd * 71) / 100 : (cur_spd * 71) / 100;
+                            s_balls[j].vy = - (cur_spd * 71) / 100;
                         }
                     }
                     break;
@@ -363,9 +415,12 @@ static void apply_powerup(PowerUpType type) {
         case PWR_SLOW:
             for (int i = 0; i < MAX_BALLS; i++) {
                 if (s_balls[i].active) {
+                    s_balls[i].speed = BALL_SLOW_SPEED;
                     s_balls[i].speed_tier = 0;
-                    if (s_balls[i].vy < 0) s_balls[i].vy = -INT_TO_FP(2);
-                    else s_balls[i].vy = INT_TO_FP(2);
+                    if (s_balls[i].vx < 0) s_balls[i].vx = - (BALL_SLOW_SPEED * 71) / 100;
+                    else s_balls[i].vx = (BALL_SLOW_SPEED * 71) / 100;
+                    if (s_balls[i].vy < 0) s_balls[i].vy = - (BALL_SLOW_SPEED * 71) / 100;
+                    else s_balls[i].vy = (BALL_SLOW_SPEED * 71) / 100;
                 }
             }
             break;
@@ -453,17 +508,15 @@ static void update_playing(void) {
 
             if (launch_pressed) {
                 s_balls[b].stuck_to_paddle = false;
-                // Aim deflection based on stick offset
-                s16 center = s_paddle.width / 2;
-                s16 diff = s_balls[b].stuck_offset_x - center;
-                s_balls[b].vx = INT_TO_FP(diff) / 5;
-                if (s_balls[b].vx == 0) s_balls[b].vx = (s_paddle.vx != 0) ? s_paddle.vx : INT_TO_FP(1);
-                s_balls[b].vy = -INT_TO_FP(2) - (INT_TO_FP(1) / 2);
+                s16 half_w = s_paddle.width / 2;
+                s16 diff = s_balls[b].stuck_offset_x - half_w;
+                apply_ball_deflection(&s_balls[b], diff, half_w);
                 sfx_bounce();
             }
             continue;
         }
 
+        fixed_t prev_x = s_balls[b].x;
         fixed_t prev_y = s_balls[b].y;
 
         s_balls[b].x += s_balls[b].vx;
@@ -472,18 +525,18 @@ static void update_playing(void) {
         s16 bx = FP_TO_INT(s_balls[b].x);
         s16 by = FP_TO_INT(s_balls[b].y);
 
-        // Wall collisions
-        if (bx <= PLAYFIELD_X_MIN) {
+        // Wall collisions (with velocity direction validation & push-out)
+        if (bx <= PLAYFIELD_X_MIN && s_balls[b].vx < 0) {
             s_balls[b].x = INT_TO_FP(PLAYFIELD_X_MIN);
             s_balls[b].vx = -s_balls[b].vx;
             sfx_bounce();
-        } else if (bx + 8 >= PLAYFIELD_X_MAX) {
+        } else if (bx + 8 >= PLAYFIELD_X_MAX && s_balls[b].vx > 0) {
             s_balls[b].x = INT_TO_FP(PLAYFIELD_X_MAX - 8);
             s_balls[b].vx = -s_balls[b].vx;
             sfx_bounce();
         }
 
-        if (by <= PLAYFIELD_Y_MIN) {
+        if (by <= PLAYFIELD_Y_MIN && s_balls[b].vy < 0) {
             s_balls[b].y = INT_TO_FP(PLAYFIELD_Y_MIN);
             s_balls[b].vy = -s_balls[b].vy;
             sfx_bounce();
@@ -494,7 +547,7 @@ static void update_playing(void) {
             continue;
         }
 
-        // Paddle collision
+        // Paddle collision (with velocity direction check and constant speed angle deflection)
         bx = FP_TO_INT(s_balls[b].x);
         by = FP_TO_INT(s_balls[b].y);
 
@@ -505,19 +558,14 @@ static void update_playing(void) {
                 sfx_bounce();
             } else {
                 s_balls[b].y = INT_TO_FP(py - 8);
-                // Dynamic reflection physics: angle depends on distance from paddle center
-                s16 hit_pos = (bx + 4) - (px + s_paddle.width / 2); // -16 .. +16 (or -24 .. +24)
-                fixed_t angle_fraction = (INT_TO_FP(hit_pos) * 3) / (s_paddle.width / 2);
-                s_balls[b].vx = angle_fraction;
-                if (s_balls[b].vx > INT_TO_FP(3)) s_balls[b].vx = INT_TO_FP(3);
-                if (s_balls[b].vx < -INT_TO_FP(3)) s_balls[b].vx = -INT_TO_FP(3);
-
-                s_balls[b].vy = -INT_TO_FP(2) - (INT_TO_FP(1) / 2);
+                s16 half_w = s_paddle.width / 2;
+                s16 hit_offset = (bx + 4) - (px + half_w);
+                apply_ball_deflection(&s_balls[b], hit_offset, half_w);
                 sfx_bounce();
             }
         }
 
-        // Brick collision
+        // Brick collision (with penetration push-out & direction check)
         s16 cx = bx + 4;
         s16 cy = by + 4;
         if (cy >= BRICK_START_Y && cy < BRICK_START_Y + (BRICK_ROWS * BRICK_HEIGHT) &&
@@ -530,13 +578,28 @@ static void update_playing(void) {
                 if (s_bricks[row][col].type != BRK_EMPTY) {
                     u8 type = s_bricks[row][col].type;
 
-                    // Reflect ball: check whether vertical or horizontal penetration was primary
+                    s16 b_left   = PLAYFIELD_X_MIN + col * BRICK_WIDTH;
+                    s16 b_right  = b_left + BRICK_WIDTH;
+                    s16 b_top    = BRICK_START_Y + row * BRICK_HEIGHT;
+                    s16 b_bottom = b_top + BRICK_HEIGHT;
+
+                    s16 pcx = FP_TO_INT(prev_x) + 4;
                     s16 pcy = FP_TO_INT(prev_y) + 4;
-                    s8 prev_row = (pcy - BRICK_START_Y) / BRICK_HEIGHT;
-                    if (prev_row != row) {
+
+                    if (pcy < b_top && s_balls[b].vy > 0) {
+                        s_balls[b].y = INT_TO_FP(b_top - 8);
                         s_balls[b].vy = -s_balls[b].vy;
-                    } else {
+                    } else if (pcy >= b_bottom && s_balls[b].vy < 0) {
+                        s_balls[b].y = INT_TO_FP(b_bottom);
+                        s_balls[b].vy = -s_balls[b].vy;
+                    } else if (pcx < b_left && s_balls[b].vx > 0) {
+                        s_balls[b].x = INT_TO_FP(b_left - 8);
                         s_balls[b].vx = -s_balls[b].vx;
+                    } else if (pcx >= b_right && s_balls[b].vx < 0) {
+                        s_balls[b].x = INT_TO_FP(b_right);
+                        s_balls[b].vx = -s_balls[b].vx;
+                    } else {
+                        s_balls[b].vy = -s_balls[b].vy;
                     }
 
                     if (type == BRK_GOLD) {
