@@ -182,9 +182,34 @@ void map_load_room(u8 room_id) {
 }
 
 u8 map_get_tile(s16 pixel_x, s16 pixel_y) {
-    if (pixel_x < 0 || pixel_x >= SCREEN_WIDTH || pixel_y < 0 || pixel_y >= SCREEN_HEIGHT) {
-        return TILE_SOLID_HULL; // Out of bounds is solid
+    // Check horizontal doorways
+    if (pixel_x >= SCREEN_WIDTH) {
+        if (s_rooms[s_current_room_id].exit_right >= 0 && pixel_y >= 112 && pixel_y < 144) {
+            return TILE_EMPTY;
+        }
+        return TILE_SOLID_HULL;
     }
+    if (pixel_x < 0) {
+        if (s_rooms[s_current_room_id].exit_left >= 0 && pixel_y >= 112 && pixel_y < 144) {
+            return TILE_EMPTY;
+        }
+        return TILE_SOLID_HULL;
+    }
+
+    // Check vertical doorways
+    if (pixel_y < 0) {
+        if (s_rooms[s_current_room_id].exit_up >= 0 && pixel_x >= 104 && pixel_x < 136) {
+            return TILE_EMPTY;
+        }
+        return TILE_SOLID_HULL;
+    }
+    if (pixel_y >= SCREEN_HEIGHT) {
+        if (s_rooms[s_current_room_id].exit_down >= 0 && pixel_x >= 104 && pixel_x < 136) {
+            return TILE_EMPTY;
+        }
+        return TILE_SOLID_HULL;
+    }
+
     u8 tx = pixel_x / 8;
     u8 ty = pixel_y / 8;
     return s_rooms[s_current_room_id].tiles[ty][tx];

@@ -22,6 +22,10 @@ static bool is_tile_solid(u8 tile) {
     return (tile == TILE_SOLID_HULL || tile == TILE_RED_BARRIER || tile == TILE_AIRLOCK_DOOR);
 }
 
+static bool is_tile_platform(u8 tile) {
+    return (tile == TILE_GRATE || tile == TILE_CONDUIT);
+}
+
 void entities_init(void) {
     s_player.x = INT_TO_FP(32);
     s_player.y = INT_TO_FP(112);
@@ -237,8 +241,17 @@ void entities_update(void) {
     px = FP_TO_INT(s_player.x);
 
     if (s_player.vy > 0) { // Falling downward
-        if (is_tile_solid(map_get_tile(px + 2, ny + h)) || is_tile_solid(map_get_tile(px + w - 2, ny + h))) {
-            s_player.y = INT_TO_FP((ny + h) / 8 * 8 - h);
+        u8 t_left = map_get_tile(px + 2, ny + h);
+        u8 t_right = map_get_tile(px + w - 2, ny + h);
+        bool solid_hit = is_tile_solid(t_left) || is_tile_solid(t_right);
+        bool plat_hit = is_tile_platform(t_left) || is_tile_platform(t_right);
+
+        s16 plat_top = (ny + h) / 8 * 8;
+        bool drop_through = key_is_down(KEY_DOWN) && (key_is_down(KEY_A) || key_was_pressed(KEY_A));
+        bool landed_on_plat = plat_hit && !drop_through && (py + h <= plat_top + 4);
+
+        if (solid_hit || landed_on_plat) {
+            s_player.y = INT_TO_FP(plat_top - h);
             s_player.vy = 0;
             s_player.on_ground = true;
         } else {
@@ -291,19 +304,19 @@ void entities_update(void) {
     // 3. Room Boundary Transitions
     // -------------------------------------------------------------
     const Room* curr_r = map_get_current_room();
-    if (px < 0 && curr_r->exit_left >= 0) {
+    if (px <= 0 && curr_r->exit_left >= 0) {
         map_load_room(curr_r->exit_left);
-        s_player.x = INT_TO_FP(SCREEN_WIDTH - 16);
+        s_player.x = INT_TO_FP(SCREEN_WIDTH - w - 8);
         entities_reset_room();
-    } else if (px > SCREEN_WIDTH - 8 && curr_r->exit_right >= 0) {
+    } else if (px + w >= SCREEN_WIDTH && curr_r->exit_right >= 0) {
         map_load_room(curr_r->exit_right);
         s_player.x = INT_TO_FP(8);
         entities_reset_room();
-    } else if (py < 0 && curr_r->exit_up >= 0) {
+    } else if (py <= 0 && curr_r->exit_up >= 0) {
         map_load_room(curr_r->exit_up);
-        s_player.y = INT_TO_FP(SCREEN_HEIGHT - 24);
+        s_player.y = INT_TO_FP(SCREEN_HEIGHT - h - 8);
         entities_reset_room();
-    } else if (py > SCREEN_HEIGHT - 8 && curr_r->exit_down >= 0) {
+    } else if (py + h >= SCREEN_HEIGHT && curr_r->exit_down >= 0) {
         map_load_room(curr_r->exit_down);
         s_player.y = INT_TO_FP(8);
         entities_reset_room();
