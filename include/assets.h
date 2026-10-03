@@ -17,16 +17,16 @@ extern "C" {
 #define TILE_AIRLOCK_DOOR 6
 #define TILE_SAVE_CONSOLE 7
 
-// Sprite tile offsets in OBJ CharBlock
-#define SPRITE_TILE_PLAYER_IDLE    0   // 16x32 = 8 tiles
-#define SPRITE_TILE_PLAYER_RUN     8   // 16x32
-#define SPRITE_TILE_PLAYER_JUMP   16   // 16x32
-#define SPRITE_TILE_PLAYER_DRONE  24   // 16x16 = 4 tiles
-#define SPRITE_TILE_BEAM          28   // 8x8 = 1 tile
-#define SPRITE_TILE_MISSILE       29   // 8x8 = 1 tile
-#define SPRITE_TILE_CRAWLER       32   // 16x16 = 4 tiles
-#define SPRITE_TILE_BOSS          40   // 32x32 = 16 tiles
-#define SPRITE_TILE_ITEM_MISSILE  56   // 16x16 = 4 tiles
+// Sprite tile offsets in OBJ CharBlock (1D mapping mode)
+#define SPRITE_TILE_PLAYER_IDLE    0   // 16x16 = 4 tiles (0..3)
+#define SPRITE_TILE_PLAYER_RUN     4   // 16x16 = 4 tiles (4..7)
+#define SPRITE_TILE_PLAYER_JUMP    8   // 16x16 = 4 tiles (8..11)
+#define SPRITE_TILE_PLAYER_DRONE  12   // 16x16 = 4 tiles (12..15)
+#define SPRITE_TILE_BEAM          16   // 8x8   = 1 tile  (16)
+#define SPRITE_TILE_MISSILE       17   // 8x8   = 1 tile  (17)
+#define SPRITE_TILE_CRAWLER       20   // 16x16 = 4 tiles (20..23)
+#define SPRITE_TILE_ITEM_MISSILE  24   // 16x16 = 4 tiles (24..27)
+#define SPRITE_TILE_BOSS          32   // 32x32 = 16 tiles (32..47)
 
 void assets_init(void);
 

@@ -47,7 +47,7 @@ void map_init(void) {
     fill_rect(r0, 10, 8, 18, 8, TILE_CONDUIT);
     r0->enemy_type = 1; // Crawler
     r0->enemy_x = 120;
-    r0->enemy_y = 136;
+    r0->enemy_y = 128; // Floor at 144, crawler height 16 -> 128
     r0->item_type = 0;
 
     // -------------------------------------------------------------
@@ -67,7 +67,7 @@ void map_init(void) {
     fill_rect(r1, 10, 4, 16, 4, TILE_CONDUIT);
     r1->enemy_type = 1;
     r1->enemy_x = 180;
-    r1->enemy_y = 96;
+    r1->enemy_y = 88; // Grate at y=104 -> crawler height 16 -> 88
     r1->item_type = 0;
 
     // -------------------------------------------------------------
@@ -123,7 +123,7 @@ void map_init(void) {
     fill_rect(r4, 28, 14, 28, 17, TILE_RED_BARRIER);
     r4->enemy_type = 1;
     r4->enemy_x = 100;
-    r4->enemy_y = 88;
+    r4->enemy_y = 80; // Platform at 96 -> height 16 -> 80
     r4->item_type = 0;
 
     // -------------------------------------------------------------

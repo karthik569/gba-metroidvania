@@ -27,6 +27,9 @@ typedef struct {
     bool facing_right;
     bool touching_wall_left;
     bool touching_wall_right;
+    bool jump_held;
+    u8 shoot_cooldown;
+    u8 crouch_timer;
     u8 invuln_timer;
     u8 anim_timer;
 } Player;

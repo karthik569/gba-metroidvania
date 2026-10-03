@@ -12,13 +12,12 @@ static Item s_item;
 static bool s_game_won = false;
 
 // Physics constants (8.8 Fixed point)
-#define GRAVITY         INT_TO_FP(1) / 4
-#define RUN_SPEED       INT_TO_FP(2)
-#define JUMP_FORCE      -(INT_TO_FP(4) + (INT_TO_FP(1) / 2))
-#define WALL_JUMP_FORCE -(INT_TO_FP(4))
-#define DRONE_SPEED     (INT_TO_FP(2) + (INT_TO_FP(1) / 2))
+#define GRAVITY         (INT_TO_FP(1) / 4)       // 0.25 px/f^2
+#define RUN_SPEED       (INT_TO_FP(2))           // 2.0 px/f
+#define JUMP_FORCE      -(INT_TO_FP(4) + (INT_TO_FP(1) / 2)) // -4.5 px/f
+#define WALL_JUMP_FORCE -(INT_TO_FP(4))          // -4.0 px/f
+#define DRONE_SPEED     (INT_TO_FP(2) + (INT_TO_FP(1) / 2)) // 2.5 px/f
 
-// Tile solid check
 static bool is_tile_solid(u8 tile) {
     return (tile == TILE_SOLID_HULL || tile == TILE_RED_BARRIER || tile == TILE_AIRLOCK_DOOR);
 }
@@ -37,6 +36,9 @@ void entities_init(void) {
     s_player.is_drone = false;
     s_player.on_ground = false;
     s_player.facing_right = true;
+    s_player.jump_held = false;
+    s_player.shoot_cooldown = 0;
+    s_player.crouch_timer = 0;
     s_player.invuln_timer = 0;
     s_player.anim_timer = 0;
 
@@ -51,12 +53,10 @@ void entities_init(void) {
 void entities_reset_room(void) {
     const Room* r = map_get_current_room();
 
-    // Reset projectiles
     for (int i = 0; i < MAX_PROJECTILES; i++) {
         s_projectiles[i].active = false;
     }
 
-    // Setup enemy
     s_enemy.active = (r->enemy_type > 0);
     s_enemy.type = r->enemy_type;
     s_enemy.x = INT_TO_FP(r->enemy_x);
@@ -64,10 +64,9 @@ void entities_reset_room(void) {
     s_enemy.vx = (r->enemy_type == 1) ? (INT_TO_FP(1) / 2) : 0;
     s_enemy.vy = 0;
     s_enemy.dir = 1;
-    s_enemy.health = (r->enemy_type == 2) ? 12 : 2; // Boss has 12 HP, Crawler has 2 HP
+    s_enemy.health = (r->enemy_type == 2) ? 12 : 3;
     s_enemy.state_timer = 0;
 
-    // Setup item
     s_item.active = (r->item_type > 0 && !s_player.has_missile_upgrade);
     s_item.type = r->item_type;
     s_item.x = r->item_x;
@@ -75,7 +74,6 @@ void entities_reset_room(void) {
 }
 
 static void fire_projectile(void) {
-    // If missile selected but out of ammo, fall back to beam
     bool shoot_missile = s_player.missile_selected && (s_player.missiles > 0);
 
     for (int i = 0; i < MAX_PROJECTILES; i++) {
@@ -94,7 +92,7 @@ static void fire_projectile(void) {
                 s_projectiles[i].vy = -INT_TO_FP(5);
                 s_projectiles[i].dir = 0;
             } else {
-                // Shoot horizontal
+                // Shoot horizontally
                 if (s_player.facing_right) {
                     s_projectiles[i].x = INT_TO_FP(px + 12);
                     s_projectiles[i].vx = INT_TO_FP(5);
@@ -121,28 +119,36 @@ static void fire_projectile(void) {
 
 void entities_update(void) {
     if (s_player.invuln_timer > 0) s_player.invuln_timer--;
+    if (s_player.shoot_cooldown > 0) s_player.shoot_cooldown--;
     s_player.anim_timer++;
 
     // -------------------------------------------------------------
     // 1. Player Input & Controls
     // -------------------------------------------------------------
-    // Toggle Missile Mode with R Shoulder
-    if (s_player.has_missile_upgrade && key_was_pressed(KEY_R)) {
+    // Toggle Missile Mode with R or Select
+    if (s_player.has_missile_upgrade && (key_was_pressed(KEY_R) || key_was_pressed(KEY_SELECT))) {
         s_player.missile_selected = !s_player.missile_selected;
     }
 
-    // Toggle Nano-Drone form with Down on D-Pad (when on ground)
-    if (key_was_pressed(KEY_DOWN) && s_player.on_ground) {
-        s_player.is_drone = !s_player.is_drone;
-    }
-    // Morph back to humanoid with UP
-    if (key_was_pressed(KEY_UP) && s_player.is_drone) {
-        // Only morph back if there's headroom (check tile above)
-        s16 px = FP_TO_INT(s_player.x);
-        s16 py = FP_TO_INT(s_player.y);
-        if (!is_tile_solid(map_get_tile(px, py - 8))) {
-            s_player.is_drone = false;
+    // Morph / Nano-Drone Form Toggle (Down to morph, Up to unmorph)
+    if (!s_player.is_drone) {
+        if (key_was_pressed(KEY_DOWN) || (key_is_down(KEY_DOWN) && s_player.on_ground && ++s_player.crouch_timer > 10)) {
+            s_player.is_drone = true;
+            s_player.crouch_timer = 0;
         }
+    } else {
+        if (key_was_pressed(KEY_UP) || (key_is_down(KEY_UP) && ++s_player.crouch_timer > 5)) {
+            s16 px = FP_TO_INT(s_player.x);
+            s16 py = FP_TO_INT(s_player.y);
+            // Only unmorph if headroom is clear
+            if (!is_tile_solid(map_get_tile(px + 4, py - 4))) {
+                s_player.is_drone = false;
+                s_player.crouch_timer = 0;
+            }
+        }
+    }
+    if (!key_is_down(KEY_DOWN) && !key_is_down(KEY_UP)) {
+        s_player.crouch_timer = 0;
     }
 
     // Horizontal Movement
@@ -156,24 +162,33 @@ void entities_update(void) {
         s_player.facing_right = false;
     }
 
-    // Jumping & Wall-Jumping (Humanoid form only)
-    if (!s_player.is_drone && key_was_pressed(KEY_A)) {
+    // Jumping & Wall-Jumping
+    bool a_pressed = key_was_pressed(KEY_A) || (key_is_down(KEY_A) && !s_player.jump_held);
+    if (!s_player.is_drone && a_pressed) {
         if (s_player.on_ground) {
             s_player.vy = JUMP_FORCE;
             s_player.on_ground = false;
+            s_player.jump_held = true;
             sfx_jump();
         } else if (s_player.touching_wall_left) {
-            // Wall-kick off left wall -> jump right
             s_player.vy = WALL_JUMP_FORCE;
             s_player.vx = RUN_SPEED;
             s_player.facing_right = true;
+            s_player.jump_held = true;
             sfx_jump();
         } else if (s_player.touching_wall_right) {
-            // Wall-kick off right wall -> jump left
             s_player.vy = WALL_JUMP_FORCE;
             s_player.vx = -RUN_SPEED;
             s_player.facing_right = false;
+            s_player.jump_held = true;
             sfx_jump();
+        }
+    }
+    if (!key_is_down(KEY_A)) {
+        s_player.jump_held = false;
+        // Variable jump height: release early to cut upward velocity
+        if (s_player.vy < -INT_TO_FP(2)) {
+            s_player.vy = -INT_TO_FP(2);
         }
     }
 
@@ -181,18 +196,21 @@ void entities_update(void) {
     s_player.vy += GRAVITY;
     if (s_player.vy > INT_TO_FP(4)) s_player.vy = INT_TO_FP(4);
 
-    // Shooting
-    if (!s_player.is_drone && key_was_pressed(KEY_B)) {
-        fire_projectile();
+    // Shooting: rapid-fire on hold or tap
+    if (!s_player.is_drone && key_is_down(KEY_B)) {
+        if (s_player.shoot_cooldown == 0) {
+            fire_projectile();
+            s_player.shoot_cooldown = 12; // 5 shots/sec
+        }
     }
 
     // -------------------------------------------------------------
-    // 2. Player Physics & Collision Resolution
+    // 2. Physics & Collision Resolution
     // -------------------------------------------------------------
     s16 px = FP_TO_INT(s_player.x);
     s16 py = FP_TO_INT(s_player.y);
-    s16 h = s_player.is_drone ? 8 : 16;
-    s16 w = 10;
+    s16 h = s_player.is_drone ? 10 : 15;
+    s16 w = 12;
 
     // Horizontal Collision
     fixed_t next_x = s_player.x + s_player.vx;
@@ -200,13 +218,13 @@ void entities_update(void) {
     s_player.touching_wall_left = false;
     s_player.touching_wall_right = false;
 
-    if (s_player.vx > 0) { // Moving right
-        if (is_tile_solid(map_get_tile(nx + w, py)) || is_tile_solid(map_get_tile(nx + w, py + h - 1))) {
+    if (s_player.vx > 0) {
+        if (is_tile_solid(map_get_tile(nx + w, py + 2)) || is_tile_solid(map_get_tile(nx + w, py + h - 1))) {
             s_player.vx = 0;
             s_player.touching_wall_right = true;
         }
-    } else if (s_player.vx < 0) { // Moving left
-        if (is_tile_solid(map_get_tile(nx, py)) || is_tile_solid(map_get_tile(nx, py + h - 1))) {
+    } else if (s_player.vx < 0) {
+        if (is_tile_solid(map_get_tile(nx, py + 2)) || is_tile_solid(map_get_tile(nx, py + h - 1))) {
             s_player.vx = 0;
             s_player.touching_wall_left = true;
         }
@@ -251,7 +269,7 @@ void entities_update(void) {
 
     // Save Console interaction (in Room 6)
     if (map_get_tile(px + 4, py + h) == TILE_SAVE_CONSOLE || map_get_tile(px + 4, py + h - 1) == TILE_SAVE_CONSOLE) {
-        if (s_player.health < s_player.max_health || s_player.missiles < s_player.max_missiles) {
+        if (s_player.health < s_player.max_health || (s_player.has_missile_upgrade && s_player.missiles < s_player.max_missiles)) {
             s_player.health = s_player.max_health;
             if (s_player.has_missile_upgrade) s_player.missiles = s_player.max_missiles;
             sfx_pickup();
@@ -260,7 +278,7 @@ void entities_update(void) {
 
     // Item Pickup collision
     if (s_item.active) {
-        if (px + 10 >= s_item.x && px <= s_item.x + 16 && py + h >= s_item.y && py <= s_item.y + 16) {
+        if (px + 12 >= s_item.x && px <= s_item.x + 16 && py + h >= s_item.y && py <= s_item.y + 16) {
             s_item.active = false;
             s_player.has_missile_upgrade = true;
             s_player.missiles = 10;
@@ -292,7 +310,7 @@ void entities_update(void) {
     }
 
     // -------------------------------------------------------------
-    // 4. Projectile Updates & Tile Destruction
+    // 4. Projectiles & Destruction
     // -------------------------------------------------------------
     for (int i = 0; i < MAX_PROJECTILES; i++) {
         if (!s_projectiles[i].active) continue;
@@ -311,7 +329,6 @@ void entities_update(void) {
         u8 hit_tile = map_get_tile(bx, by);
         if (hit_tile == TILE_RED_BARRIER) {
             if (s_projectiles[i].is_missile) {
-                // Missile blasts through red barrier!
                 u8 tx = bx / 8;
                 u8 ty = by / 8;
                 map_set_tile(tx, ty, TILE_EMPTY);
@@ -357,17 +374,21 @@ void entities_update(void) {
             s16 ex = FP_TO_INT(s_enemy.x);
             s16 ey = FP_TO_INT(s_enemy.y);
 
-            // Turn around on walls or edges
-            if (s_enemy.dir > 0 && is_tile_solid(map_get_tile(ex + 16, ey + 8))) {
-                s_enemy.dir = -1;
-            } else if (s_enemy.dir < 0 && is_tile_solid(map_get_tile(ex - 1, ey + 8))) {
-                s_enemy.dir = 1;
+            // Wall or ledge check: turn around if wall ahead OR if floor drops off
+            if (s_enemy.dir > 0) {
+                if (is_tile_solid(map_get_tile(ex + 16, ey + 8)) || !is_tile_solid(map_get_tile(ex + 16, ey + 17))) {
+                    s_enemy.dir = -1;
+                }
+            } else {
+                if (is_tile_solid(map_get_tile(ex - 1, ey + 8)) || !is_tile_solid(map_get_tile(ex - 1, ey + 17))) {
+                    s_enemy.dir = 1;
+                }
             }
 
             // Hurt player on touch
             px = FP_TO_INT(s_player.x);
             py = FP_TO_INT(s_player.y);
-            if (s_player.invuln_timer == 0 && px + 10 >= ex && px <= ex + 14 && py + h >= ey && py <= ey + 14) {
+            if (s_player.invuln_timer == 0 && px + w >= ex && px <= ex + 14 && py + h >= ey && py <= ey + 14) {
                 s_player.health -= 10;
                 s_player.invuln_timer = 40;
                 s_player.vy = -INT_TO_FP(2);
@@ -375,17 +396,15 @@ void entities_update(void) {
             }
         } else if (s_enemy.type == 2) { // Boss Sentinel
             s_enemy.state_timer++;
-            // Floating sinusoidal motion
             s_enemy.x += (s_enemy.dir == 1) ? (INT_TO_FP(1) / 2) : -(INT_TO_FP(1) / 2);
             s16 ex = FP_TO_INT(s_enemy.x);
             if (ex > 180) s_enemy.dir = -1;
             if (ex < 60) s_enemy.dir = 1;
 
-            // Hurt player on collision
             px = FP_TO_INT(s_player.x);
             py = FP_TO_INT(s_player.y);
             s16 ey = FP_TO_INT(s_enemy.y);
-            if (s_player.invuln_timer == 0 && px + 10 >= ex && px <= ex + 28 && py + h >= ey && py <= ey + 28) {
+            if (s_player.invuln_timer == 0 && px + w >= ex && px <= ex + 28 && py + h >= ey && py <= ey + 28) {
                 s_player.health -= 20;
                 s_player.invuln_timer = 50;
                 s_player.vy = -INT_TO_FP(3);
@@ -399,28 +418,23 @@ void entities_render(void) {
     oam_clear();
     u8 sprite_id = 0;
 
-    // 1. Render Player
+    // 1. Render Player (16x16)
     s16 px = FP_TO_INT(s_player.x);
     s16 py = FP_TO_INT(s_player.y);
 
-    // Flicker when invulnerable
     if ((s_player.invuln_timer % 4) < 2) {
+        u16 tile = SPRITE_TILE_PLAYER_IDLE;
         if (s_player.is_drone) {
-            // 16x16 Drone sphere
-            oam_set(sprite_id++, px, py, ATTR0_SQUARE, ATTR1_SIZE_16, SPRITE_TILE_PLAYER_DRONE, 0, !s_player.facing_right, false);
-        } else {
-            // Humanoid Operative (16x32)
-            u16 tile = SPRITE_TILE_PLAYER_IDLE;
-            if (!s_player.on_ground) {
-                tile = SPRITE_TILE_PLAYER_JUMP;
-            } else if (s_player.vx != 0) {
-                tile = ((s_player.anim_timer / 8) % 2 == 0) ? SPRITE_TILE_PLAYER_RUN : SPRITE_TILE_PLAYER_IDLE;
-            }
-            oam_set(sprite_id++, px, py, ATTR0_TALL, ATTR1_SIZE_32, tile, 0, !s_player.facing_right, false);
+            tile = SPRITE_TILE_PLAYER_DRONE;
+        } else if (!s_player.on_ground) {
+            tile = SPRITE_TILE_PLAYER_JUMP;
+        } else if (s_player.vx != 0) {
+            tile = ((s_player.anim_timer / 6) % 2 == 0) ? SPRITE_TILE_PLAYER_RUN : SPRITE_TILE_PLAYER_IDLE;
         }
+        oam_set(sprite_id++, px, py, ATTR0_SQUARE, ATTR1_SIZE_16, tile, 0, !s_player.facing_right, false);
     }
 
-    // 2. Render Projectiles
+    // 2. Render Projectiles (8x8)
     for (int i = 0; i < MAX_PROJECTILES; i++) {
         if (!s_projectiles[i].active) continue;
         s16 bx = FP_TO_INT(s_projectiles[i].x);
@@ -440,7 +454,7 @@ void entities_render(void) {
         }
     }
 
-    // 4. Render Item Pickup
+    // 4. Render Item Pickup (16x16)
     if (s_item.active) {
         oam_set(sprite_id++, s_item.x, s_item.y, ATTR0_SQUARE, ATTR1_SIZE_16, SPRITE_TILE_ITEM_MISSILE, 0, false, false);
     }
