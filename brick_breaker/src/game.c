@@ -504,6 +504,87 @@ static const u8 s_stage30[BRICK_ROWS][BRICK_COLS] = {
     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 
+// Stage intro banners displayed at the top of the playfield (row 1, max 22 chars)
+static const char* const s_stage_intro_banners[MAX_STAGES] = {
+    "STAGE 01: INITIATION",
+    "STAGE 02: INVADER",
+    "STAGE 03: VAULT",
+    "STAGE 04: DIAMOND",
+    "STAGE 05: GAUNTLET",
+    "STAGE 06: DEMOLITION",
+    "STAGE 07: MATRIX",
+    "STAGE 08: ORBITAL",
+    "STAGE 09: HAZARD",
+    "STAGE 10: APEX CORE",
+    "STAGE 11: PROTOCOL",
+    "STAGE 12: BINARY",
+    "STAGE 13: FIREWALL",
+    "STAGE 14: STREAM",
+    "STAGE 15: CASCADE",
+    "STAGE 16: QUANTUM",
+    "STAGE 17: LOGIC",
+    "STAGE 18: MAINFRAME",
+    "STAGE 19: GLITCH",
+    "STAGE 20: CYBER NEXUS",
+    "STAGE 21: GATEWAY",
+    "STAGE 22: QUANTUM MAZE",
+    "STAGE 23: HORIZON",
+    "STAGE 24: OVERDRIVE",
+    "STAGE 25: TWIN VORTEX",
+    "STAGE 26: BIO-MATRIX",
+    "STAGE 27: SINGULARITY",
+    "STAGE 28: MINEFIELD",
+    "STAGE 29: THE CITADEL",
+    "STAGE 30: AI OVERLORD"
+};
+
+// Stage subtitles displayed on title screen selector (row 10, max 22 chars)
+static const char* const s_stage_subtitles[MAX_STAGES] = {
+    "INITIATION GRID",
+    "SPACE INVADER",
+    "CHECKERBOARD VAULT",
+    "DIAMOND FORTRESS",
+    "GOLDEN GAUNTLET",
+    "DEMOLITION DEPOT",
+    "MATRIX CHAMBER",
+    "ORBITAL PATROL",
+    "HAZARD CORE",
+    "THE APEX FORTRESS",
+    "CYBER PROTOCOL",
+    "BINARY MAZE",
+    "NEON FIREWALL",
+    "DATA STREAM",
+    "CIRCUIT CASCADE",
+    "QUANTUM CORE",
+    "LOGIC GATE",
+    "MAINFRAME CITADEL",
+    "GLITCH BREACH",
+    "THE CYBER NEXUS",
+    "WARP GATEWAY",
+    "QUANTUM MAZE",
+    "EVENT HORIZON",
+    "KINETIC OVERDRIVE",
+    "THE TWIN VORTEX",
+    "BIO-MATRIX CITADEL",
+    "WARP SINGULARITY",
+    "MINEFIELD RUN",
+    "THE CITADEL GATES",
+    "AI OVERLORD CORE"
+};
+
+// Display centered stage intro banner on playfield row 1 for 2.0s (120 frames)
+static void show_stage_intro_banner(u8 stage) {
+    if (stage < 1 || stage > MAX_STAGES) return;
+    const char* title = s_stage_intro_banners[stage - 1];
+    u8 len = 0;
+    while (title[len]) len++;
+    u8 start_col = 1 + (22 - len) / 2;
+    draw_text(1, 1, "                      ");
+    draw_text(start_col, 1, title);
+    s_pwr_toast_timer = 120; // 2.0 seconds at 60 FPS
+    s_pwr_toast_type = PWR_NONE;
+}
+
 // Floor Shield Barrier BG Tilemap Renderer
 static void render_shield_barrier(void) {
     u16 tile = TILE_EMPTY;
@@ -709,7 +790,7 @@ void game_init(void) {
     s_max_stage_unlocked = save_get_max_stage();
     if (s_max_stage_unlocked < 1) s_max_stage_unlocked = 1;
     if (s_max_stage_unlocked > MAX_STAGES) s_max_stage_unlocked = MAX_STAGES;
-    s_selected_stage = 1;
+    s_selected_stage = s_max_stage_unlocked;
 
     init_background_playfield();
     update_hud_text();
@@ -776,7 +857,7 @@ static void reset_paddle_and_ball(void) {
     s_paddle.laser_cooldown = 0;
     s_pwr_toast_timer = 0;
     s_pwr_toast_type = PWR_NONE;
-    draw_text(3, 1, "                   ");
+    draw_text(1, 1, "                      ");
 
     // Primary ball stuck to paddle
     s_balls[0].active = true;
@@ -937,7 +1018,8 @@ static void update_boss(void) {
         s_boss.phase = BOSS_PHASE_EXPOSED;
         sfx_boss_pod_destroyed();
         trigger_screen_shake(3, 14);
-        draw_text(3, 1, ">> FORCE FIELD DOWN <<");
+        draw_text(1, 1, "                      ");
+        draw_text(1, 1, ">> FORCE FIELD DOWN <<");
         s_pwr_toast_timer = 90;
         update_hud_text();
     }
@@ -1101,6 +1183,7 @@ void game_load_stage(u8 stage_num) {
     if (stage_num < 1) stage_num = 1;
     if (stage_num > MAX_STAGES) stage_num = MAX_STAGES;
     s_current_stage = stage_num;
+    s_selected_stage = stage_num;
 
     // Load Zone 1, Zone 2, or Zone 3 palette
     assets_load_zone_palette((stage_num >= 21) ? 3 : (stage_num >= 11) ? 2 : 1);
@@ -1330,6 +1413,7 @@ void game_load_stage(u8 stage_num) {
 
     reset_paddle_and_ball();
     update_hud_text();
+    show_stage_intro_banner(stage_num);
 }
 
 void game_start_new(void) {
@@ -1490,6 +1574,7 @@ static void detonate_tnt(s8 col, s8 row) {
 
 static void apply_powerup(PowerUpType type) {
     sfx_powerup_get();
+    draw_text(1, 1, "                      ");
     s_pwr_toast_timer = 90; // 1.5 seconds banner at 60 FPS
     s_pwr_toast_type = type;
 
@@ -2026,7 +2111,8 @@ static void update_playing(void) {
                         s_boss.phase = BOSS_PHASE_ENRAGED;
                         sfx_core_laser();
                         trigger_screen_shake(3, 20);
-                        draw_text(3, 1, ">> MELTDOWN OVERDRIVE <<");
+                        draw_text(1, 1, "                      ");
+                        draw_text(2, 1, ">> OVERDRIVE MODE <<");
                         s_pwr_toast_timer = 90;
                     }
                     if (s_boss.hp <= 0) {
@@ -2338,7 +2424,8 @@ static void update_playing(void) {
                             s_boss.phase = BOSS_PHASE_ENRAGED;
                             sfx_core_laser();
                             trigger_screen_shake(3, 20);
-                            draw_text(3, 1, ">> MELTDOWN OVERDRIVE <<");
+                            draw_text(1, 1, "                      ");
+                            draw_text(2, 1, ">> OVERDRIVE MODE <<");
                             s_pwr_toast_timer = 90;
                         }
                         if (s_boss.hp <= 0) {
@@ -2570,7 +2657,7 @@ static void update_playing(void) {
     if (s_pwr_toast_timer > 0) {
         s_pwr_toast_timer--;
         if (s_pwr_toast_timer == 0) {
-            draw_text(3, 1, "                   ");
+            draw_text(1, 1, "                      ");
             update_hud_text();
         }
     }
@@ -2677,6 +2764,7 @@ void game_update(void) {
             if (s_state_timer > 150 || key_was_pressed(KEY_START) || key_was_pressed(KEY_A)) {
                 draw_text(5, 11, "         ");
                 init_background_playfield();
+                s_selected_stage = (s_current_stage <= s_max_stage_unlocked) ? s_current_stage : s_max_stage_unlocked;
                 s_state = STATE_TITLE;
                 s_state_timer = 0;
                 jingle_title();
@@ -2704,6 +2792,7 @@ void game_update(void) {
                 draw_text(4, 12, "             ");
                 draw_text(3, 11, "                  ");
                 init_background_playfield();
+                s_selected_stage = s_max_stage_unlocked;
                 s_state = STATE_TITLE;
                 s_state_timer = 0;
                 jingle_title();
@@ -2736,6 +2825,21 @@ void game_render(void) {
         st_buf[11] = (s_selected_stage < s_max_stage_unlocked) ? '>' : ' ';
         st_buf[12] = '\0';
         draw_text(6, 9, st_buf);
+
+        // Display centered stage subtitle on row 10
+        if (s_selected_stage >= 1 && s_selected_stage <= MAX_STAGES) {
+            const char* sub = s_stage_subtitles[s_selected_stage - 1];
+            u8 len = 0;
+            while (sub[len]) len++;
+            u8 sub_x = 1 + (22 - len) / 2;
+            char sub_buf[23];
+            for (int i = 0; i < 22; i++) sub_buf[i] = ' ';
+            sub_buf[22] = '\0';
+            for (int i = 0; i < len; i++) {
+                sub_buf[(sub_x - 1) + i] = sub[i];
+            }
+            draw_text(1, 10, sub_buf);
+        }
 
         if (s_selected_stage >= 21) {
             draw_text(6, 11, "ZONE: NEON ");

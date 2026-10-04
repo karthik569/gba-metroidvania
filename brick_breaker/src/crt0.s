@@ -9,10 +9,10 @@ _start:
     .fill   156, 1, 0
 
     @ Game Title (12 bytes)
-    .ascii  "OUTPOST_ZERO"
+    .ascii  "BRK_BREAKER\0"
 
     @ Game Code (4 bytes)
-    .ascii  "MAOE"
+    .ascii  "ABKE"
 
     @ Maker Code (2 bytes)
     .ascii  "01"
