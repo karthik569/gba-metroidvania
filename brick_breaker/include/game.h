@@ -21,7 +21,7 @@
 #define MAX_PARTICLES       12
 #define MAX_STAGES          30
 #define MAX_KINETIC_BRICKS  2
-#define MAX_REGEN_TRACKERS  16
+#define MAX_REGEN_TRACKERS  32
 #define MAX_BOSS_BOLTS      4
 #define MAX_BOSS_PODS       2
 #define MAX_WARP_PORTALS    2

@@ -1410,8 +1410,10 @@ static void detonate_tnt(s8 col, s8 row) {
                     queue_len++;
                 }
             } else if (ntype == BRK_REGEN) {
+                bool found = false;
                 for (int t = 0; t < MAX_REGEN_TRACKERS; t++) {
                     if (s_regen_trackers[t].active && s_regen_trackers[t].col == nc && s_regen_trackers[t].row == nr) {
+                        found = true;
                         s_regen_trackers[t].hp--;
                         s_regen_trackers[t].heal_timer = 300;
                         if (s_regen_trackers[t].hp > 0) {
@@ -1430,6 +1432,23 @@ static void detonate_tnt(s8 col, s8 row) {
                             }
                         }
                         break;
+                    }
+                }
+                if (!found) {
+                    if (s_bricks[nr][nc].hp > 1) {
+                        s_bricks[nr][nc].hp--;
+                        render_brick_tiles(nc, nr, BRK_REGEN, s_bricks[nr][nc].hp);
+                        spawn_particles(PLAYFIELD_X_MIN + nc * 16, BRICK_START_Y + nr * 8, 3);
+                    } else {
+                        s_bricks[nr][nc].type = BRK_EMPTY;
+                        render_brick_tiles(nc, nr, BRK_EMPTY, 0);
+                        s_destructible_remaining--;
+                        s_score += 300;
+                        spawn_particles(PLAYFIELD_X_MIN + nc * 16, BRICK_START_Y + nr * 8, 3);
+                        if (!s_tnt_capsule_dropped && (rng_next() % 100 < 35)) {
+                            s_tnt_capsule_dropped = true;
+                            spawn_capsule(PLAYFIELD_X_MIN + nc * 16, BRICK_START_Y + nr * 8);
+                        }
                     }
                 }
             } else if (ntype == BRK_SILVER) {
@@ -2098,8 +2117,10 @@ static void update_playing(void) {
                         s_tnt_capsule_dropped = false;
                         detonate_tnt(col, row);
                     } else if (type == BRK_REGEN) {
+                        bool found = false;
                         for (int t = 0; t < MAX_REGEN_TRACKERS; t++) {
                             if (s_regen_trackers[t].active && s_regen_trackers[t].col == col && s_regen_trackers[t].row == row) {
+                                found = true;
                                 s_regen_trackers[t].hp--;
                                 s_regen_trackers[t].heal_timer = 300;
                                 if (s_regen_trackers[t].hp > 0 && s_mega_timer == 0) {
@@ -2118,6 +2139,23 @@ static void update_playing(void) {
                                     if (rng_next() % 100 < 30) spawn_capsule(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8);
                                 }
                                 break;
+                            }
+                        }
+                        if (!found) {
+                            if (s_bricks[row][col].hp > 1 && s_mega_timer == 0) {
+                                s_bricks[row][col].hp--;
+                                render_brick_tiles(col, row, BRK_REGEN, s_bricks[row][col].hp);
+                                sfx_brick_hard();
+                                spawn_particles(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8, 3);
+                            } else {
+                                s_bricks[row][col].type = BRK_EMPTY;
+                                render_brick_tiles(col, row, BRK_EMPTY, 0);
+                                s_destructible_remaining--;
+                                s_score += 300;
+                                if (s_mega_timer > 0) sfx_mega_smash();
+                                else sfx_brick_hit();
+                                spawn_particles(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8, 3);
+                                if (rng_next() % 100 < 30) spawn_capsule(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8);
                             }
                         }
                     } else if (type == BRK_SILVER) {
@@ -2368,8 +2406,10 @@ static void update_playing(void) {
                         s_tnt_capsule_dropped = false;
                         detonate_tnt(col, row);
                     } else if (type == BRK_REGEN) {
+                        bool found = false;
                         for (int t = 0; t < MAX_REGEN_TRACKERS; t++) {
                             if (s_regen_trackers[t].active && s_regen_trackers[t].col == col && s_regen_trackers[t].row == row) {
+                                found = true;
                                 s_regen_trackers[t].hp--;
                                 s_regen_trackers[t].heal_timer = 300;
                                 if (s_regen_trackers[t].hp > 0) {
@@ -2386,6 +2426,21 @@ static void update_playing(void) {
                                     spawn_particles(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8, 3);
                                 }
                                 break;
+                            }
+                        }
+                        if (!found) {
+                            if (s_bricks[row][col].hp > 1) {
+                                s_bricks[row][col].hp--;
+                                render_brick_tiles(col, row, BRK_REGEN, s_bricks[row][col].hp);
+                                sfx_brick_hard();
+                                spawn_particles(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8, 3);
+                            } else {
+                                s_bricks[row][col].type = BRK_EMPTY;
+                                render_brick_tiles(col, row, BRK_EMPTY, 0);
+                                s_destructible_remaining--;
+                                s_score += 300;
+                                sfx_brick_hit();
+                                spawn_particles(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8, 3);
                             }
                         }
                     } else if (type == BRK_SILVER) {
