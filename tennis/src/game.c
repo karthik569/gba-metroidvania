@@ -63,11 +63,12 @@ static void set_announcement(const char* str, u8 frames) {
 }
 
 // Target-Zone Trajectory Launcher: calculates exact parabolic velocities
+// Tuned for natural, readable arcade tennis tempo with g = 0.0625 px/frame^2
 static void launch_ball(fixed_t x0, fixed_t y0, fixed_t z0,
                         fixed_t tx, fixed_t ty,
                         u16 flight_time, ShotType shot,
                         u8 hitter, u8 trail_type) {
-    if (flight_time < 8) flight_time = 8;
+    if (flight_time < 12) flight_time = 12;
     TennisBall* b = &g_tennis.ball;
 
     b->x = x0;
@@ -81,8 +82,8 @@ static void launch_ball(fixed_t x0, fixed_t y0, fixed_t z0,
     b->vx = (tx - x0) / (s32)flight_time;
     b->vy = (ty - y0) / (s32)flight_time;
 
-    // Gravity: g = 0.125 px/frame^2 = INT_TO_FP(1) / 8 = 32 in 8.8 FP
-    fixed_t g = INT_TO_FP(1) / 8;
+    // Gravity: g = 0.0625 px/frame^2 = INT_TO_FP(1) / 16 = 16 in 8.8 FP
+    fixed_t g = INT_TO_FP(1) / 16;
     fixed_t term1 = ((s32)(flight_time - 1) * g) / 2;
     fixed_t term2 = z0 / (s32)flight_time;
     b->vz = term1 - term2;
@@ -105,7 +106,7 @@ static void launch_ball(fixed_t x0, fixed_t y0, fixed_t z0,
     b->last_shot = shot;
     b->last_hitter = hitter;
     b->trail_type = trail_type;
-    b->trail_timer = (flight_time < 22) ? 22 : 16;
+    b->trail_timer = (flight_time < 30) ? 24 : 16;
     b->in_air = true;
     b->first_bounce_evaluated = false;
     b->bounce_count = 0;
@@ -147,7 +148,7 @@ static void targets_update(void) {
     // Bullseye moves horizontally
     TargetRing* b = &g_tennis.targets[3];
     if (b->active) {
-        s16 offset = ((g_tennis.game_frame >> 1) % 60) - 30;
+        s16 offset = ((g_tennis.game_frame >> 2) % 60) - 30;
         b->x = 120 + offset;
     }
 
@@ -222,10 +223,13 @@ static void setup_service(void) {
         g_tennis.ball.y = g_tennis.player.y - INT_TO_FP(4);
         g_tennis.ball.z = INT_TO_FP(8);
         g_tennis.ball.last_hitter = 0;
+
+        set_announcement("PRESS A TO TOSS", 120);
     } else {
-        // Opponent serves
+        // Opponent serves (give player a 60-frame preparation window)
         g_tennis.player.is_serving = false;
         g_tennis.opponent.is_serving = true;
+        g_tennis.opponent.timer = 50; // 50-frame delay before toss
         g_tennis.opponent.state = ACTOR_STATE_READY;
         g_tennis.opponent.x = INT_TO_FP(deuce_side ? 96 : 144);
         g_tennis.opponent.y = INT_TO_FP(BASELINE_FAR_Y + 2);
@@ -238,6 +242,8 @@ static void setup_service(void) {
         g_tennis.ball.y = g_tennis.opponent.y + INT_TO_FP(4);
         g_tennis.ball.z = INT_TO_FP(8);
         g_tennis.ball.last_hitter = 1;
+
+        set_announcement("OPPONENT SERVING...", 60);
     }
 
     g_tennis.state = STATE_MATCH_SERVE_WAIT;
@@ -300,7 +306,7 @@ void game_award_point(u8 winner) {
     if (g_tennis.state == STATE_TARGET_PRACTICE) {
         g_tennis.target_combo = 1;
         g_tennis.ball.in_air = false;
-        g_tennis.ball_machine_timer = 30;
+        g_tennis.ball_machine_timer = 40;
         return;
     }
 
@@ -436,7 +442,7 @@ static void update_ball_physics(void) {
     if (!b->in_air) return;
 
     b->flight_elapsed++;
-    b->vz -= (INT_TO_FP(1) / 8); // Gravity: 0.125 px/frame^2
+    b->vz -= (INT_TO_FP(1) / 16); // Gravity: 0.0625 px/frame^2
     b->x += b->vx;
     b->y += b->vy;
     b->z += b->vz;
@@ -573,83 +579,110 @@ static void update_player(void) {
         p->state = ACTOR_STATE_READY;
     }
 
-    // Serve Toss Phase
+    // =========================================================================
+    // 1. Serve Toss Phase (Clear HUD guidance, intuitive 1-button or 2-button flow)
+    // =========================================================================
     if (g_tennis.state == STATE_MATCH_SERVE_WAIT && p->is_serving) {
         if (key_was_pressed(KEY_A) || key_was_pressed(KEY_B)) {
             p->state = ACTOR_STATE_TOSS;
-            p->timer = 45;
+            p->timer = 60;
             g_tennis.ball.in_air = true;
             g_tennis.ball.x = p->x + INT_TO_FP(6);
             g_tennis.ball.y = p->y - INT_TO_FP(4);
             g_tennis.ball.z = INT_TO_FP(8);
             g_tennis.ball.vx = 0;
             g_tennis.ball.vy = 0;
-            g_tennis.ball.vz = INT_TO_FP(3) + (INT_TO_FP(1) / 2); // Toss upward
+            g_tennis.ball.vz = INT_TO_FP(2) + (INT_TO_FP(1) / 4); // Smooth, readable toss upward
             g_tennis.ball.last_shot = SHOT_SERVE;
             g_tennis.ball.last_hitter = 0;
             sfx_play_racket_slice();
+            set_announcement("HIT AT PEAK! (A)", 45);
+        }
+        return;
+    }
+
+    // =========================================================================
+    // 2. Serve Strike Hit Timing (Generous window, Power Ace at peak, Auto-hit safety)
+    // =========================================================================
+    if (p->state == ACTOR_STATE_TOSS && p->is_serving) {
+        s16 bz = FP_TO_INT(g_tennis.ball.z);
+
+        // Flash visual prompt at peak
+        if (bz >= 20) {
+            set_announcement("NOW! SMASH ACE!", 15);
+        }
+
+        bool player_hit_pressed = (key_was_pressed(KEY_A) || key_was_pressed(KEY_B));
+        bool auto_hit_safety = (bz <= 12 && g_tennis.ball.vz < 0); // Auto-hit as ball descends if not pressed
+
+        if (player_hit_pressed || auto_hit_safety) {
+            p->state = ACTOR_STATE_SERVE_HIT;
+            p->timer = 20;
+
+            bool deuce = p->side_deuce;
+            s16 target_box_x = deuce ? 98 : 142; // Far service box center
+            if (key_is_down(KEY_LEFT))  target_box_x -= 16;
+            if (key_is_down(KEY_RIGHT)) target_box_x += 16;
+            s16 target_box_y = 66;
+
+            u16 flight = 38;
+            u16 mph = 95;
+            u8 trail = 0;
+
+            if (player_hit_pressed && bz >= 20) {
+                // MAX POWER ACE!
+                flight = 28;
+                mph = 126 + ((g_tennis.game_frame & 7) * 2);
+                trail = 2; // Yellow lightning trail
+                graphics_trigger_shake(3, 14);
+                sfx_play_racket_smash();
+                g_tennis.save_data.total_aces++;
+                set_announcement("POWER ACE!", 60);
+            } else if (player_hit_pressed) {
+                // Good Serve
+                flight = 36;
+                mph = 100 + (bz * 2);
+                sfx_play_racket_topspin();
+                set_announcement("GOOD SERVE!", 45);
+            } else {
+                // Safe Auto-Hit
+                flight = 42;
+                mph = 88;
+                sfx_play_racket_topspin();
+                set_announcement("SAFE SERVE", 40);
+            }
+
+            g_tennis.last_serve_mph = mph;
+            if (mph > g_tennis.save_data.max_serve_speed) {
+                g_tennis.save_data.max_serve_speed = mph;
+            }
+
+            launch_ball(g_tennis.ball.x, g_tennis.ball.y, g_tennis.ball.z,
+                        INT_TO_FP(target_box_x), INT_TO_FP(target_box_y),
+                        flight, SHOT_SERVE, 0, trail);
+
             g_tennis.state = STATE_MATCH_RALLY;
         }
         return;
     }
 
-    // Serve Strike Hit Timing
-    if (p->state == ACTOR_STATE_TOSS && p->is_serving) {
-        if (key_was_pressed(KEY_A) || key_was_pressed(KEY_B)) {
-            s16 bz = FP_TO_INT(g_tennis.ball.z);
-            if (bz >= 18) {
-                p->state = ACTOR_STATE_SERVE_HIT;
-                p->timer = 20;
-
-                bool deuce = p->side_deuce;
-                s16 target_box_x = deuce ? 98 : 142; // Far service box center
-                if (key_is_down(KEY_LEFT))  target_box_x -= 16;
-                if (key_is_down(KEY_RIGHT)) target_box_x += 16;
-                s16 target_box_y = 66;
-
-                u16 flight = 24;
-                u16 mph = 95 + (bz * 2);
-
-                if (bz >= 26) {
-                    // MAX POWER ACE!
-                    flight = 18;
-                    mph = 126 + ((g_tennis.game_frame & 7) * 2);
-                    graphics_trigger_shake(3, 14);
-                    sfx_play_racket_smash();
-                    g_tennis.save_data.total_aces++;
-                    set_announcement("POWER ACE!", 60);
-                } else {
-                    sfx_play_racket_topspin();
-                }
-
-                g_tennis.last_serve_mph = mph;
-                if (mph > g_tennis.save_data.max_serve_speed) {
-                    g_tennis.save_data.max_serve_speed = mph;
-                }
-
-                launch_ball(g_tennis.ball.x, g_tennis.ball.y, g_tennis.ball.z,
-                            INT_TO_FP(target_box_x), INT_TO_FP(target_box_y),
-                            flight, SHOT_SERVE, 0, (mph >= 120 ? 2 : 0));
-            }
-        }
-        return;
-    }
-
-    // Movement & Charging Logic
+    // =========================================================================
+    // 3. Movement & Charging Logic (Paced for strategic positioning)
+    // =========================================================================
     // Charge detection: if opponent hit the ball, player can hold A (Topspin) or B (Slice)
     if (g_tennis.ball.in_air && g_tennis.ball.last_hitter == 1) {
         if (key_is_down(KEY_A) && key_is_down(KEY_B)) {
             p->is_charging = true;
             p->charge_shot = SHOT_LOB;
-            if (p->charge_power < 40) p->charge_power++;
+            if (p->charge_power < 36) p->charge_power++;
         } else if (key_is_down(KEY_A)) {
             p->is_charging = true;
             p->charge_shot = SHOT_TOPSPIN;
-            if (p->charge_power < 40) p->charge_power++;
+            if (p->charge_power < 36) p->charge_power++;
         } else if (key_is_down(KEY_B)) {
             p->is_charging = true;
             p->charge_shot = SHOT_SLICE;
-            if (p->charge_power < 40) p->charge_power++;
+            if (p->charge_power < 36) p->charge_power++;
         } else {
             p->is_charging = false;
         }
@@ -658,8 +691,8 @@ static void update_player(void) {
         p->charge_power = 0;
     }
 
-    // Player court movement speed (charging slows down slightly for precision)
-    fixed_t spd = p->is_charging ? (INT_TO_FP(1) + (INT_TO_FP(1) / 3)) : INT_TO_FP(2);
+    // Smooth, athletic court movement speed (charging slows down slightly for precision)
+    fixed_t spd = p->is_charging ? (INT_TO_FP(5) / 4) : (INT_TO_FP(7) / 4); // 1.25 vs 1.75 px/frame
     p->vx = 0;
     p->vy = 0;
 
@@ -676,7 +709,7 @@ static void update_player(void) {
     s16 cy = FP_TO_INT(p->y);
     if (cx < 120 - hw - 8) p->x = INT_TO_FP(120 - hw - 8);
     if (cx > 120 + hw + 8) p->x = INT_TO_FP(120 + hw + 8);
-    if (cy < NET_Y + 12) p->y = INT_TO_FP(NET_Y + 12);
+    if (cy < NET_Y + 14) p->y = INT_TO_FP(NET_Y + 14);
     if (cy > BASELINE_NEAR_Y + 12) p->y = INT_TO_FP(BASELINE_NEAR_Y + 12);
 
     // Animation state
@@ -687,14 +720,16 @@ static void update_player(void) {
         if (p->state == ACTOR_STATE_RUN) p->state = ACTOR_STATE_READY;
     }
 
-    // Racket Swing Hit Detection (Generous, responsive strike zone)
+    // =========================================================================
+    // 4. Racket Swing Hit Detection (Generous, responsive strike zone & natural pace)
+    // =========================================================================
     s16 bx = FP_TO_INT(g_tennis.ball.x);
     s16 by = FP_TO_INT(g_tennis.ball.y);
     s16 bz = FP_TO_INT(g_tennis.ball.z);
 
-    bool ball_in_strike_zone = (bx >= cx - 28 && bx <= cx + 28 && by >= cy - 24 && by <= cy + 18 && bz <= 45);
+    bool ball_in_strike_zone = (bx >= cx - 30 && bx <= cx + 30 && by >= cy - 26 && by <= cy + 20 && bz <= 50);
 
-    // Trigger swing if in strike zone and (holding charge OR just pressed A/B)
+    // Trigger swing if in strike zone and (holding charge OR pressed A/B)
     if (ball_in_strike_zone && (p->is_charging || key_was_pressed(KEY_A) || key_was_pressed(KEY_B))) {
         bool is_fh = (bx >= cx);
         p->state = is_fh ? ACTOR_STATE_SWING_FH : ACTOR_STATE_SWING_BH;
@@ -717,43 +752,43 @@ static void update_player(void) {
         // Steer landing coordinates based on D-Pad Left/Right
         s16 target_y = 42; // Deep far court baseline
         s16 target_x = 120;
-        u16 flight = 28;
+        u16 flight = 48; // Smooth, readable rally flight time
         u8 trail_type = 0; // Red topspin
 
         if (shot == SHOT_SMASH) {
-            flight = 16;
+            flight = 26;
             target_y = 44;
             target_x = key_is_down(KEY_LEFT) ? 80 : (key_is_down(KEY_RIGHT) ? 160 : 120);
             trail_type = 2; // Yellow
             sfx_play_racket_smash();
             graphics_trigger_shake(4, 15);
         } else if (shot == SHOT_LOB) {
-            flight = 46;
+            flight = 68;
             target_y = 38;
             target_x = key_is_down(KEY_LEFT) ? 84 : (key_is_down(KEY_RIGHT) ? 156 : 120);
             trail_type = 1; // Blue
             sfx_play_racket_slice();
         } else if (shot == SHOT_DROP) {
-            flight = 36;
+            flight = 54;
             target_y = 68; // Just past net cord
             target_x = key_is_down(KEY_LEFT) ? 90 : (key_is_down(KEY_RIGHT) ? 150 : 120);
             trail_type = 1;
             sfx_play_racket_slice();
         } else if (shot == SHOT_SLICE) {
-            flight = 32;
+            flight = 52;
             target_y = 54;
             target_x = key_is_down(KEY_LEFT) ? 82 : (key_is_down(KEY_RIGHT) ? 158 : 120);
             trail_type = 1; // Blue
             sfx_play_racket_slice();
         } else {
-            // Topspin Drive
-            flight = 28 - (p->charge_power / 4); // Up to 18 frames when fully charged!
+            // Topspin Drive (Paced rally speed: 48 frames normal, 36 frames charged)
+            flight = 48 - (p->charge_power / 3);
             target_y = 42 - (p->charge_power / 8);
-            target_x = key_is_down(KEY_LEFT) ? (78 - (p->charge_power > 25 ? 4 : 0)) :
-                       (key_is_down(KEY_RIGHT) ? (162 + (p->charge_power > 25 ? 4 : 0)) : 120);
-            trail_type = (p->charge_power >= 25) ? 2 : 0;
+            target_x = key_is_down(KEY_LEFT) ? (78 - (p->charge_power > 20 ? 4 : 0)) :
+                       (key_is_down(KEY_RIGHT) ? (162 + (p->charge_power > 20 ? 4 : 0)) : 120);
+            trail_type = (p->charge_power >= 20) ? 2 : 0;
             sfx_play_racket_topspin();
-            if (p->charge_power >= 25) {
+            if (p->charge_power >= 20) {
                 graphics_trigger_shake(2, 8);
             }
         }
@@ -786,39 +821,43 @@ static void update_opponent_ai(void) {
         opp->state = ACTOR_STATE_READY;
     }
 
-    // Opponent serving
+    // Opponent serving (with preparation countdown)
     if (g_tennis.state == STATE_MATCH_SERVE_WAIT && opp->is_serving) {
-        if (g_tennis.game_frame % 60 == 30) {
-            opp->state = ACTOR_STATE_SERVE_HIT;
-            opp->timer = 20;
-
-            bool deuce = opp->side_deuce;
-            s16 target_x = deuce ? 142 : 98; // Player's near service box
-            s16 target_y = 90;
-
-            u16 flight = 24;
-            u8 trail = 0;
-
-            if (g_tennis.ai_style == AI_POWER_SERVER) {
-                flight = 19;
-                trail = 2;
-                g_tennis.last_serve_mph = 128;
-                sfx_play_racket_smash();
-                graphics_trigger_shake(3, 12);
-            } else {
-                g_tennis.last_serve_mph = 104;
-                sfx_play_racket_topspin();
-            }
-
-            launch_ball(opp->x + INT_TO_FP(6), opp->y + INT_TO_FP(4), INT_TO_FP(24),
-                        INT_TO_FP(target_x), INT_TO_FP(target_y),
-                        flight, SHOT_SERVE, 1, trail);
-
-            if (g_tennis.ai_style == AI_VOLLEYER) {
-                opp->ai_net_rushing = true;
-            }
-            g_tennis.state = STATE_MATCH_RALLY;
+        if (opp->timer > 0) {
+            set_announcement("OPPONENT SERVING...", 15);
+            return;
         }
+
+        // Opponent serves!
+        opp->state = ACTOR_STATE_SERVE_HIT;
+        opp->timer = 20;
+
+        bool deuce = opp->side_deuce;
+        s16 target_x = deuce ? 142 : 98; // Player's near service box
+        s16 target_y = 90;
+
+        u16 flight = 40;
+        u8 trail = 0;
+
+        if (g_tennis.ai_style == AI_POWER_SERVER) {
+            flight = 32;
+            trail = 2;
+            g_tennis.last_serve_mph = 126;
+            sfx_play_racket_smash();
+            graphics_trigger_shake(3, 12);
+        } else {
+            g_tennis.last_serve_mph = 98;
+            sfx_play_racket_topspin();
+        }
+
+        launch_ball(opp->x + INT_TO_FP(6), opp->y + INT_TO_FP(4), INT_TO_FP(24),
+                    INT_TO_FP(target_x), INT_TO_FP(target_y),
+                    flight, SHOT_SERVE, 1, trail);
+
+        if (g_tennis.ai_style == AI_VOLLEYER) {
+            opp->ai_net_rushing = true;
+        }
+        g_tennis.state = STATE_MATCH_RALLY;
         return;
     }
 
@@ -846,8 +885,8 @@ static void update_opponent_ai(void) {
 
     fixed_t dx = target_x - opp->x;
     fixed_t dy = target_y - opp->y;
-    fixed_t ai_spd = (g_tennis.ai_style == AI_BASELINER) ? (INT_TO_FP(1) + (INT_TO_FP(3) / 4)) :
-                     (INT_TO_FP(1) + (INT_TO_FP(1) / 2));
+    fixed_t ai_spd = (g_tennis.ai_style == AI_BASELINER) ? (INT_TO_FP(8) / 5) :
+                     (g_tennis.ai_style == AI_VOLLEYER ? (INT_TO_FP(7) / 5) : (INT_TO_FP(6) / 5));
 
     if (dx > INT_TO_FP(3))  opp->x += ai_spd;
     else if (dx < -INT_TO_FP(3)) opp->x -= ai_spd;
@@ -862,34 +901,34 @@ static void update_opponent_ai(void) {
     s16 by = FP_TO_INT(g_tennis.ball.y);
     s16 bz = FP_TO_INT(g_tennis.ball.z);
 
-    if (g_tennis.ball.vy < 0 && bx >= ox - 26 && bx <= ox + 26 && by >= oy - 18 && by <= oy + 18 && bz <= 40) {
+    if (g_tennis.ball.vy < 0 && bx >= ox - 26 && bx <= ox + 26 && by >= oy - 18 && by <= oy + 18 && bz <= 45) {
         bool is_fh = (bx >= ox);
         opp->state = is_fh ? ACTOR_STATE_SWING_FH : ACTOR_STATE_SWING_BH;
         opp->timer = 18;
 
         s16 target_x_ret = (g_tennis.player.x > opp->x) ? 75 : 165; // Aim across court
         s16 target_y_ret = 128;
-        u16 flight = 28;
+        u16 flight = 48;
         u8 trail = 0;
         ShotType shot = SHOT_TOPSPIN;
 
         if (g_tennis.ai_style == AI_POWER_SERVER) {
             // Marcus Thorne blasts heavy drives
-            flight = 21;
+            flight = 38;
             target_y_ret = 132;
             trail = 2;
             sfx_play_racket_smash();
             graphics_trigger_shake(2, 8);
         } else if (g_tennis.ai_style == AI_VOLLEYER && opp->ai_net_rushing) {
             // Kenji Sato volleys sharply
-            flight = 24;
+            flight = 42;
             target_y_ret = 110;
             trail = 1;
             shot = SHOT_SLICE;
             sfx_play_racket_slice();
         } else {
             // Leo Vance ultra-reliable topspins
-            flight = 30;
+            flight = 48;
             target_y_ret = 134;
             sfx_play_racket_topspin();
         }
@@ -935,14 +974,14 @@ static void update_target_practice(void) {
             g_tennis.ball_machine_timer--;
         } else {
             // Fire ball from machine at far court
-            g_tennis.ball_machine_timer = 110;
+            g_tennis.ball_machine_timer = 130;
             s16 target_px = FP_TO_INT(g_tennis.player.x) + ((s16)(g_tennis.game_frame & 15) - 8);
             if (target_px < 60) target_px = 60;
             if (target_px > 180) target_px = 180;
 
             launch_ball(INT_TO_FP(120), INT_TO_FP(BASELINE_FAR_Y), INT_TO_FP(20),
                         INT_TO_FP(target_px), INT_TO_FP(BASELINE_NEAR_Y - 4),
-                        32, SHOT_TOPSPIN, 1, 0);
+                        48, SHOT_TOPSPIN, 1, 0);
             sfx_play_racket_slice();
         }
     }
@@ -1202,8 +1241,9 @@ void game_draw(void) {
         u16 opp_tile = SPRITE_OPP_READY_0;
         if (g_tennis.opponent.state == ACTOR_STATE_SWING_FH) opp_tile = SPRITE_OPP_SWING_FH;
         if (g_tennis.opponent.state == ACTOR_STATE_SWING_BH) opp_tile = SPRITE_OPP_SWING_BH;
+        if (g_tennis.opponent.state == ACTOR_STATE_SERVE_HIT) opp_tile = SPRITE_OPP_SERVE;
         if (g_tennis.opponent.state == ACTOR_STATE_RUN) {
-            opp_tile = (g_tennis.game_frame & 8) ? SPRITE_OPP_RUN_R : SPRITE_OPP_RUN_L;
+            opp_tile = ((g_tennis.game_frame >> 3) & 1) ? SPRITE_OPP_RUN_R : SPRITE_OPP_RUN_L;
         }
         graphics_set_sprite(sprite_idx++, ox - 8, oy - 14, opp_tile, 0, 1, PAL_OBJ_OPPONENT, false, false);
     }
@@ -1231,8 +1271,8 @@ void game_draw(void) {
         s16 by = FP_TO_INT(g_tennis.ball.y) - FP_TO_INT(g_tennis.ball.z);
 
         u16 ball_tile = SPRITE_BALL_MID;
-        if (g_tennis.ball.z > INT_TO_FP(26) || g_tennis.ball.y < INT_TO_FP(60)) ball_tile = SPRITE_BALL_SMALL;
-        if (g_tennis.ball.y > INT_TO_FP(115) && g_tennis.ball.z < INT_TO_FP(16)) ball_tile = SPRITE_BALL_LARGE;
+        if (g_tennis.ball.z > INT_TO_FP(28) || g_tennis.ball.y < INT_TO_FP(60)) ball_tile = SPRITE_BALL_SMALL;
+        if (g_tennis.ball.y > INT_TO_FP(110) && g_tennis.ball.z < INT_TO_FP(18)) ball_tile = SPRITE_BALL_LARGE;
 
         graphics_set_sprite(sprite_idx++, bx - 8, by - 8, ball_tile, 0, 1, PAL_OBJ_BALL, false, false);
 
@@ -1258,12 +1298,12 @@ void game_draw(void) {
     // Charge aura pulsing sprite
     if (g_tennis.player.is_charging && (g_tennis.game_frame & 2)) {
         u16 aura_tile = (g_tennis.player.charge_shot == SHOT_SLICE) ? SPRITE_SWING_TRAIL_BLUE : SPRITE_SWING_TRAIL_RED;
-        if (g_tennis.player.charge_power >= 30) aura_tile = SPRITE_SWING_TRAIL_YEL;
+        if (g_tennis.player.charge_power >= 20) aura_tile = SPRITE_SWING_TRAIL_YEL;
         graphics_set_sprite(sprite_idx++, px - 8, py - 6, aura_tile, 0, 1, PAL_OBJ_VFX, false, false);
     }
 
     // Player body
-    u16 player_tile = SPRITE_PLAYER_READY_0;
+    u16 player_tile = (g_tennis.game_frame & 16) ? SPRITE_PLAYER_READY_0 : SPRITE_PLAYER_READY_1;
     if (g_tennis.player.state == ACTOR_STATE_RUN) {
         player_tile = ((g_tennis.player.run_anim >> 3) & 1) ? SPRITE_PLAYER_RUN_R : SPRITE_PLAYER_RUN_L;
     }

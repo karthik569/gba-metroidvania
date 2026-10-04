@@ -522,197 +522,499 @@ static void generate_sprite_16x16(u16 base_tile, const u8 pixels[16][16]) {
     upload_sprite_tile(base_tile + 3, tile_buf);
 }
 
-static void generate_player_sprites(void) {
+static void make_sprite_from_art(u16 tile_index, const char* rows[16]) {
     u8 p[16][16];
-
-    // Player Ready Stance
     for (int y = 0; y < 16; y++) {
         for (int x = 0; x < 16; x++) {
-            u8 c = 0;
-            // Head & Hair
-            if (y >= 1 && y <= 4 && x >= 6 && x <= 9) c = 8; // Brown hair
-            if (y >= 3 && y <= 5 && x >= 6 && x <= 9) c = 7; // Face skin
-            // White Polo Shirt
-            if (y >= 6 && y <= 9 && x >= 5 && x <= 10) c = 3;
-            // Navy Shorts
-            if (y >= 10 && y <= 12 && x >= 5 && x <= 10) c = 4;
-            // Legs & White Tennis Shoes
-            if (y >= 13 && y <= 15 && (x == 6 || x == 9)) c = 12;
-            // Racket held forward (gold hoop)
-            if (y >= 6 && y <= 8 && (x == 11 || x == 12)) c = 10;
-            p[y][x] = c;
+            char ch = rows[y][x];
+            u8 val = 0;
+            if (ch >= '0' && ch <= '9') val = ch - '0';
+            else if (ch >= 'A' && ch <= 'F') val = 10 + (ch - 'A');
+            else if (ch >= 'a' && ch <= 'f') val = 10 + (ch - 'a');
+            p[y][x] = val;
         }
     }
-    generate_sprite_16x16(SPRITE_PLAYER_READY_0, p);
-    p[15][6] = 0; // Stance bob
-    generate_sprite_16x16(SPRITE_PLAYER_READY_1, p);
+    generate_sprite_16x16(tile_index, p);
+}
 
-    // Run Left / Right
-    p[14][5] = 12; p[14][10] = 0;
-    generate_sprite_16x16(SPRITE_PLAYER_RUN_L, p);
-    p[14][5] = 0; p[14][10] = 12;
-    generate_sprite_16x16(SPRITE_PLAYER_RUN_R, p);
+static void generate_player_sprites(void) {
+    // 1. Near Player: Ready Stance 0 (athletic back-3/4 angle, white polo, navy shorts, gold racket)
+    static const char* s_p_ready_0[16] = {
+        "......8888......",
+        ".....889988.....",
+        ".....877778.....",
+        ".....167761.....",
+        "....13333331....",
+        "...1333333331...",
+        "...1233333321.AA",
+        "...1714444171A..A",
+        "....14444441.A..A",
+        "....14411441..AA.",
+        "....167..761..1..",
+        "....177..771.....",
+        "....1CC..CC1.....",
+        "....1C1..1C1.....",
+        "....111..111.....",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_PLAYER_READY_0, s_p_ready_0);
 
-    // Forehand Swing
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            u8 c = p[y][x];
-            if (y >= 7 && y <= 11 && x >= 11 && x <= 15) c = 10; // Racket sweeping forward
-            p[y][x] = c;
-        }
-    }
-    generate_sprite_16x16(SPRITE_PLAYER_SWING_FH_0, p);
-    generate_sprite_16x16(SPRITE_PLAYER_SWING_FH_1, p);
+    // Ready Stance 1 (subtle athletic knee bounce)
+    static const char* s_p_ready_1[16] = {
+        "................",
+        "......8888......",
+        ".....889988.....",
+        ".....877778.....",
+        "....13333331....",
+        "...1333333331...",
+        "...1233333321.AA",
+        "...1714444171A..A",
+        "....14444441.A..A",
+        "....14411441..AA.",
+        "....167..761..1..",
+        "....177..771.....",
+        "....1CC..CC1.....",
+        "....1C1..1C1.....",
+        "....111..111.....",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_PLAYER_READY_1, s_p_ready_1);
+
+    // Run Left
+    static const char* s_p_run_l[16] = {
+        ".....8888.......",
+        "....889988......",
+        "....877778......",
+        "...13333331.AA..",
+        "..1333333331A..A",
+        "..1233333321.AA.",
+        "..1714444171.1..",
+        "...14444441.....",
+        "..1671..1671....",
+        ".1771....1771...",
+        ".1CC1.....1CC1..",
+        ".111.......111..",
+        "................",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_PLAYER_RUN_L, s_p_run_l);
+
+    // Run Right
+    static const char* s_p_run_r[16] = {
+        ".......8888.....",
+        "......889988....",
+        "......877778....",
+        "AA..13333331....",
+        "A..A1333333331..",
+        ".AA.1233333321..",
+        "..1.1714444171..",
+        ".....14444441...",
+        "....1671..1671..",
+        "...1771....1771.",
+        "..1CC1.....1CC1.",
+        "..111.......111.",
+        "................",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_PLAYER_RUN_R, s_p_run_r);
+
+    // Forehand Swing (Full follow-through across body)
+    static const char* s_p_swing_fh[16] = {
+        "..AA............",
+        ".A..A...8888....",
+        ".A..A..889988...",
+        "..AA...877778...",
+        "...1..13333331..",
+        "...1.1333333331.",
+        "....1733333321..",
+        "....17144441....",
+        ".....14444441...",
+        "....1671..1671..",
+        "...1771....1771.",
+        "...1CC1.....1CC1",
+        "...111.......111",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_PLAYER_SWING_FH_0, s_p_swing_fh);
+    make_sprite_from_art(SPRITE_PLAYER_SWING_FH_1, s_p_swing_fh);
 
     // Backhand Swing
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            u8 c = p[y][x];
-            if (y >= 7 && y <= 11 && x >= 0 && x <= 4) c = 10; // Sweeping to the left
-            p[y][x] = c;
-        }
-    }
-    generate_sprite_16x16(SPRITE_PLAYER_SWING_BH_0, p);
-    generate_sprite_16x16(SPRITE_PLAYER_SWING_BH_1, p);
+    static const char* s_p_swing_bh[16] = {
+        "............AA..",
+        "....8888...A..A.",
+        "...889988..A..A.",
+        "...877778...AA..",
+        "..13333331..1...",
+        ".1333333331.1...",
+        "..1233333371....",
+        "....14444171....",
+        "...14444441.....",
+        "..1671..1671....",
+        ".1771....1771...",
+        "1CC1.....1CC1...",
+        "111.......111...",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_PLAYER_SWING_BH_0, s_p_swing_bh);
+    make_sprite_from_art(SPRITE_PLAYER_SWING_BH_1, s_p_swing_bh);
 
-    // Serve Toss & Hit
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            u8 c = 0;
-            if (y >= 3 && y <= 6 && x >= 7 && x <= 10) c = 7;
-            if (y >= 7 && y <= 11 && x >= 6 && x <= 10) c = 3; // Reaching up
-            if (y <= 2 && x >= 8 && x <= 10) c = 10; // Racket raised high overhead
-            if (y >= 12 && y <= 15 && (x == 7 || x == 9)) c = 12;
-            p[y][x] = c;
-        }
-    }
-    generate_sprite_16x16(SPRITE_PLAYER_TOSS, p);
-    generate_sprite_16x16(SPRITE_PLAYER_SERVE_HIT, p);
-    generate_sprite_16x16(SPRITE_PLAYER_SMASH, p);
+    // Serve Toss (left arm high in air releasing ball, racket coiled)
+    static const char* s_p_toss[16] = {
+        "...7............",
+        "...7....8888....",
+        "...7...889988...",
+        "...1...877778...",
+        "....13333331....",
+        "...1333333331...",
+        "...1233333321...",
+        "...1714444171.AA",
+        "....14444441.A..A",
+        "....14411441.A..A",
+        "....167..761..AA",
+        "....177..771..1.",
+        "....1CC..CC1....",
+        "....111..111....",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_PLAYER_TOSS, s_p_toss);
 
-    // Far Opponent Player (Scaled smaller for depth)
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            u8 c = 0;
-            if (y >= 5 && y <= 7 && x >= 7 && x <= 9) c = 7;   // Skin
-            if (y >= 8 && y <= 10 && x >= 6 && x <= 10) c = 3; // Crimson shirt
-            if (y >= 11 && y <= 12 && x >= 6 && x <= 10) c = 4; // Black shorts
-            if (y >= 13 && y <= 14 && (x == 7 || x == 9)) c = 11;
-            if (y >= 8 && y <= 10 && x == 11) c = 9; // Silver racket
-            p[y][x] = c;
-        }
-    }
-    generate_sprite_16x16(SPRITE_OPP_READY_0, p);
-    p[14][7] = 0;
-    generate_sprite_16x16(SPRITE_OPP_READY_1, p);
-    generate_sprite_16x16(SPRITE_OPP_RUN_L, p);
-    generate_sprite_16x16(SPRITE_OPP_RUN_R, p);
-    generate_sprite_16x16(SPRITE_OPP_SWING_FH, p);
-    generate_sprite_16x16(SPRITE_OPP_SWING_BH, p);
-    generate_sprite_16x16(SPRITE_OPP_SERVE, p);
+    // Serve Hit (fully extended overhead smash)
+    static const char* s_p_serve_hit[16] = {
+        "......AAAA......",
+        ".....A....A.....",
+        ".....A.BB.A.....",
+        "......AAAA......",
+        ".......1........",
+        ".......7........",
+        "......8888......",
+        ".....877778.....",
+        "....13333331....",
+        "...1333333331...",
+        "....14444441....",
+        "....14411441....",
+        ".....17..71.....",
+        ".....1C..C1.....",
+        ".....11..11.....",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_PLAYER_SERVE_HIT, s_p_serve_hit);
 
-    // Tennis Ball Sizes (Small, Mid, Large)
-    // Small Ball (Far court / High altitude)
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            u8 c = 0;
-            if (x >= 7 && x <= 8 && y >= 7 && y <= 8) c = 3; // 2x2 dot
-            p[y][x] = c;
-        }
-    }
-    generate_sprite_16x16(SPRITE_BALL_SMALL, p);
+    // Jump Smash (Airborne spike)
+    static const char* s_p_smash[16] = {
+        ".....AAAA.......",
+        "....A....A......",
+        "....A.BB.A......",
+        ".....AAAA.......",
+        "......17........",
+        ".....8888.......",
+        "....877778......",
+        "...13333331.....",
+        "..1333333331....",
+        "...14444441.....",
+        "....144441......",
+        "....1671671.....",
+        "...1771.1771....",
+        "...1CC1..1CC1...",
+        "...111....111...",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_PLAYER_SMASH, s_p_smash);
 
-    // Mid Ball (Standard rally)
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            u8 c = 0;
-            if ((x - 8) * (x - 8) + (y - 8) * (y - 8) <= 4) c = 3;
-            if (x == 8 && y == 8) c = 4; // Specular
-            p[y][x] = c;
-        }
-    }
-    generate_sprite_16x16(SPRITE_BALL_MID, p);
+    // 2. Far Opponent Player (Front-facing, crimson polo, dark hair, black shorts)
+    static const char* s_opp_ready_0[16] = {
+        "......8888......",
+        ".....888888.....",
+        ".....777777.....",
+        ".....177771.....",
+        "....13333331....",
+        "...1333333331.99",
+        "...12333333219..9",
+        "...17144441719..9",
+        "....14444441..99",
+        "....14411441..1.",
+        "....167..761....",
+        "....177..771....",
+        "....1BB..BB1....",
+        "....111..111....",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_OPP_READY_0, s_opp_ready_0);
 
-    // Large Ball (Near baseline / Smash)
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            u8 c = 0;
-            if ((x - 8) * (x - 8) + (y - 8) * (y - 8) <= 9) c = 3;
-            if ((x - 8) * (x - 8) + (y - 8) * (y - 8) <= 3) c = 4;
-            p[y][x] = c;
-        }
-    }
-    generate_sprite_16x16(SPRITE_BALL_LARGE, p);
+    static const char* s_opp_ready_1[16] = {
+        "................",
+        "......8888......",
+        ".....888888.....",
+        ".....777777.....",
+        "....13333331....",
+        "...1333333331.99",
+        "...12333333219..9",
+        "...17144441719..9",
+        "....14444441..99",
+        "....14411441..1.",
+        "....167..761....",
+        "....177..771....",
+        "....1BB..BB1....",
+        "....111..111....",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_OPP_READY_1, s_opp_ready_1);
 
-    // Ball Ground Drop Shadow (Translucent dark oval)
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            u8 c = 0;
-            if (y >= 7 && y <= 9 && x >= 5 && x <= 11) c = 7; // Shadow
-            p[y][x] = c;
-        }
-    }
-    generate_sprite_16x16(SPRITE_BALL_SHADOW, p);
+    static const char* s_opp_run_l[16] = {
+        ".....8888.......",
+        "....888888......",
+        "....177771......",
+        "...13333331.99..",
+        "..13333333319..9",
+        "..1233333321.99.",
+        "..1714444171.1..",
+        "...14444441.....",
+        "..1671..1671....",
+        ".1771....1771...",
+        ".1BB1.....1BB1..",
+        ".111.......111..",
+        "................",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_OPP_RUN_L, s_opp_run_l);
 
-    // Chalk Puff Impact
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            u8 c = 0;
-            if ((x - 8) * (x - 8) + (y - 8) * (y - 8) <= 12) c = 5; // White chalk
-            p[y][x] = c;
-        }
-    }
-    generate_sprite_16x16(SPRITE_CHALK_PUFF, p);
+    static const char* s_opp_run_r[16] = {
+        ".......8888.....",
+        "......888888....",
+        "......177771....",
+        "99..13333331....",
+        "9..91333333331..",
+        ".99.1233333321..",
+        "..1.1714444171..",
+        ".....14444441...",
+        "....1671..1671..",
+        "...1771....1771.",
+        "..1BB1.....1BB1.",
+        "..111.......111.",
+        "................",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_OPP_RUN_R, s_opp_run_r);
 
-    // Swing Trails (Red Topspin, Blue Slice, Yellow Ace)
+    static const char* s_opp_swing_fh[16] = {
+        "..99............",
+        ".9..9...8888....",
+        ".9..9..888888...",
+        "..99...177771...",
+        "...1..13333331..",
+        "...1.1333333331.",
+        "....1733333321..",
+        "....17144441....",
+        ".....14444441...",
+        "....1671..1671..",
+        "...1771....1771.",
+        "...1BB1.....1BB1",
+        "...111.......111",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_OPP_SWING_FH, s_opp_swing_fh);
+
+    static const char* s_opp_swing_bh[16] = {
+        "............99..",
+        "....8888...9..9.",
+        "...888888..9..9.",
+        "...177771...99..",
+        "..13333331..1...",
+        ".1333333331.1...",
+        "..1233333371....",
+        "....14444171....",
+        "...14444441.....",
+        "..1671..1671....",
+        ".1771....1771...",
+        "1BB1.....1BB1...",
+        "111.......111...",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_OPP_SWING_BH, s_opp_swing_bh);
+
+    static const char* s_opp_serve[16] = {
+        "......9999......",
+        ".....9....9.....",
+        ".....9....9.....",
+        "......9999......",
+        ".......1........",
+        ".......7........",
+        "......8888......",
+        ".....177771.....",
+        "....13333331....",
+        "...1333333331...",
+        "....14444441....",
+        "....14411441....",
+        ".....17..71.....",
+        ".....1B..B1.....",
+        ".....11..11.....",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_OPP_SERVE, s_opp_serve);
+
+    // 3. Tennis Ball & Shadow
+    static const char* s_ball_small[16] = {
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        ".......11.......",
+        "......1341......",
+        "......1231......",
+        ".......11.......",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_BALL_SMALL, s_ball_small);
+
+    static const char* s_ball_mid[16] = {
+        "................",
+        "................",
+        "................",
+        "................",
+        "......1111......",
+        ".....124421.....",
+        "....12533521....",
+        "....12355321....",
+        ".....123321.....",
+        "......1111......",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_BALL_MID, s_ball_mid);
+
+    static const char* s_ball_large[16] = {
+        "................",
+        "................",
+        "................",
+        ".....111111.....",
+        "....12344321....",
+        "...125333521...",
+        "...123555321...",
+        "...123555321...",
+        "...125333521...",
+        "....12333321....",
+        ".....111111.....",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_BALL_LARGE, s_ball_large);
+
+    static const char* s_ball_shadow[16] = {
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "......7777......",
+        "....77111177....",
+        "...7111111117...",
+        "...7111111117...",
+        "....77111177....",
+        "......7777......",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_BALL_SHADOW, s_ball_shadow);
+
+    static const char* s_chalk_puff[16] = {
+        "......5..5......",
+        "....5.5555.5....",
+        "...5556556555...",
+        "..556655556655..",
+        "....55555555....",
+        "..5.56555565.5..",
+        "....5.5555.5....",
+        "......5..5......",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_CHALK_PUFF, s_chalk_puff);
+
+    // Swing Trails
+    u8 p[16][16];
     for (int y = 0; y < 16; y++) {
         for (int x = 0; x < 16; x++) {
-            u8 c = 0;
-            if (y >= 6 && y <= 10 && x >= 2 && x <= 14) c = 2; // Red trail
-            p[y][x] = c;
+            p[y][x] = (y >= 6 && y <= 10 && x >= 2 && x <= 14) ? 2 : 0;
         }
     }
     generate_sprite_16x16(SPRITE_SWING_TRAIL_RED, p);
 
     for (int y = 0; y < 16; y++) {
         for (int x = 0; x < 16; x++) {
-            u8 c = 0;
-            if (y >= 6 && y <= 10 && x >= 2 && x <= 14) c = 5; // Blue trail
-            p[y][x] = c;
+            p[y][x] = (y >= 6 && y <= 10 && x >= 2 && x <= 14) ? 5 : 0;
         }
     }
     generate_sprite_16x16(SPRITE_SWING_TRAIL_BLUE, p);
 
     for (int y = 0; y < 16; y++) {
         for (int x = 0; x < 16; x++) {
-            u8 c = 0;
-            if (y >= 6 && y <= 10 && x >= 2 && x <= 14) c = 8; // Yellow trail
-            p[y][x] = c;
+            p[y][x] = (y >= 6 && y <= 10 && x >= 2 && x <= 14) ? 8 : 0;
         }
     }
     generate_sprite_16x16(SPRITE_SWING_TRAIL_YEL, p);
 
-    // Target Ring (Mini-Game Target)
+    // Target Ring
     for (int y = 0; y < 16; y++) {
         for (int x = 0; x < 16; x++) {
-            u8 c = 0;
             int r2 = (x - 8) * (x - 8) + (y - 8) * (y - 8);
-            if (r2 <= 49 && r2 >= 25) c = 10; // Outer ring
-            if (r2 <= 9) c = 11;             // Bullseye
+            u8 c = 0;
+            if (r2 <= 49 && r2 >= 25) c = 10;
+            if (r2 <= 9) c = 11;
             p[y][x] = c;
         }
     }
     generate_sprite_16x16(SPRITE_TARGET_RING, p);
 
-    // Grand Slam Gold Trophy
+    // Gold Trophy
     for (int y = 0; y < 16; y++) {
         for (int x = 0; x < 16; x++) {
             u8 c = 0;
-            if (y >= 2 && y <= 7 && x >= 5 && x <= 10) c = 3; // Cup bowl
-            if (y >= 4 && y <= 6 && (x == 3 || x == 12)) c = 3; // Handles
-            if (y >= 8 && y <= 10 && (x == 7 || x == 8)) c = 2; // Stem
-            if (y >= 11 && y <= 13 && x >= 4 && x <= 11) c = 1; // Base
-            if (y == 3 && x == 6) c = 5; // Shine
+            if (y >= 2 && y <= 7 && x >= 5 && x <= 10) c = 3;
+            if (y >= 4 && y <= 6 && (x == 3 || x == 12)) c = 3;
+            if (y >= 8 && y <= 10 && (x == 7 || x == 8)) c = 2;
+            if (y >= 11 && y <= 13 && x >= 4 && x <= 11) c = 1;
+            if (y == 3 && x == 6) c = 5;
             p[y][x] = c;
         }
     }
