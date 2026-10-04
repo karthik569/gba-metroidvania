@@ -442,6 +442,12 @@ static void update_ball_physics(void) {
     if (!b->in_air) return;
 
     b->flight_elapsed++;
+    if (g_tennis.state == STATE_MATCH_SERVE_WAIT) {
+        b->vz -= (INT_TO_FP(1) / 16);
+        b->z += b->vz;
+        return;
+    }
+
     b->vz -= (INT_TO_FP(1) / 16); // Gravity: 0.0625 px/frame^2
     b->x += b->vx;
     b->y += b->vy;
@@ -580,90 +586,91 @@ static void update_player(void) {
     }
 
     // =========================================================================
-    // 1. Serve Toss Phase (Clear HUD guidance, intuitive 1-button or 2-button flow)
+    // 1. Serve Phase (Player is Serving: Toss -> Timing Strike -> Launch)
     // =========================================================================
     if (g_tennis.state == STATE_MATCH_SERVE_WAIT && p->is_serving) {
-        if (key_was_pressed(KEY_A) || key_was_pressed(KEY_B)) {
-            p->state = ACTOR_STATE_TOSS;
-            p->timer = 60;
-            g_tennis.ball.in_air = true;
-            g_tennis.ball.x = p->x + INT_TO_FP(6);
-            g_tennis.ball.y = p->y - INT_TO_FP(4);
-            g_tennis.ball.z = INT_TO_FP(8);
-            g_tennis.ball.vx = 0;
-            g_tennis.ball.vy = 0;
-            g_tennis.ball.vz = INT_TO_FP(2) + (INT_TO_FP(1) / 4); // Smooth, readable toss upward
-            g_tennis.ball.last_shot = SHOT_SERVE;
-            g_tennis.ball.last_hitter = 0;
-            sfx_play_racket_slice();
-            set_announcement("HIT AT PEAK! (A)", 45);
-        }
-        return;
-    }
+        if (p->state != ACTOR_STATE_TOSS) {
+            // Stage 1: Waiting for Toss
+            set_announcement("PRESS A TO TOSS", 30);
+            if (key_was_pressed(KEY_A) || key_was_pressed(KEY_B)) {
+                p->state = ACTOR_STATE_TOSS;
+                p->timer = 60;
+                g_tennis.ball.in_air = true;
+                g_tennis.ball.x = p->x + INT_TO_FP(6);
+                g_tennis.ball.y = p->y - INT_TO_FP(4);
+                g_tennis.ball.z = INT_TO_FP(8);
+                g_tennis.ball.vx = 0;
+                g_tennis.ball.vy = 0;
+                g_tennis.ball.vz = INT_TO_FP(2) + (INT_TO_FP(1) / 4); // Smooth, readable toss upward
+                g_tennis.ball.last_shot = SHOT_SERVE;
+                g_tennis.ball.last_hitter = 0;
+                sfx_play_racket_slice();
+                set_announcement("HIT AT PEAK! (A)", 45);
+            }
+            return;
+        } else {
+            // Stage 2: Ball Tossed in the Air -> Hit at Peak!
+            s16 bz = FP_TO_INT(g_tennis.ball.z);
 
-    // =========================================================================
-    // 2. Serve Strike Hit Timing (Generous window, Power Ace at peak, Auto-hit safety)
-    // =========================================================================
-    if (p->state == ACTOR_STATE_TOSS && p->is_serving) {
-        s16 bz = FP_TO_INT(g_tennis.ball.z);
-
-        // Flash visual prompt at peak
-        if (bz >= 20) {
-            set_announcement("NOW! SMASH ACE!", 15);
-        }
-
-        bool player_hit_pressed = (key_was_pressed(KEY_A) || key_was_pressed(KEY_B));
-        bool auto_hit_safety = (bz <= 12 && g_tennis.ball.vz < 0); // Auto-hit as ball descends if not pressed
-
-        if (player_hit_pressed || auto_hit_safety) {
-            p->state = ACTOR_STATE_SERVE_HIT;
-            p->timer = 20;
-
-            bool deuce = p->side_deuce;
-            s16 target_box_x = deuce ? 98 : 142; // Far service box center
-            if (key_is_down(KEY_LEFT))  target_box_x -= 16;
-            if (key_is_down(KEY_RIGHT)) target_box_x += 16;
-            s16 target_box_y = 66;
-
-            u16 flight = 38;
-            u16 mph = 95;
-            u8 trail = 0;
-
-            if (player_hit_pressed && bz >= 20) {
-                // MAX POWER ACE!
-                flight = 28;
-                mph = 126 + ((g_tennis.game_frame & 7) * 2);
-                trail = 2; // Yellow lightning trail
-                graphics_trigger_shake(3, 14);
-                sfx_play_racket_smash();
-                g_tennis.save_data.total_aces++;
-                set_announcement("POWER ACE!", 60);
-            } else if (player_hit_pressed) {
-                // Good Serve
-                flight = 36;
-                mph = 100 + (bz * 2);
-                sfx_play_racket_topspin();
-                set_announcement("GOOD SERVE!", 45);
-            } else {
-                // Safe Auto-Hit
-                flight = 42;
-                mph = 88;
-                sfx_play_racket_topspin();
-                set_announcement("SAFE SERVE", 40);
+            // Flash visual prompt at peak
+            if (bz >= 20) {
+                set_announcement("NOW! SMASH ACE!", 15);
             }
 
-            g_tennis.last_serve_mph = mph;
-            if (mph > g_tennis.save_data.max_serve_speed) {
-                g_tennis.save_data.max_serve_speed = mph;
+            bool player_hit_pressed = (key_was_pressed(KEY_A) || key_was_pressed(KEY_B));
+            bool auto_hit_safety = (bz <= 12 && g_tennis.ball.vz < 0); // Auto-hit as ball descends if not pressed
+
+            if (player_hit_pressed || auto_hit_safety) {
+                p->state = ACTOR_STATE_SERVE_HIT;
+                p->timer = 20;
+
+                bool deuce = p->side_deuce;
+                s16 target_box_x = deuce ? 98 : 142; // Far service box center
+                if (key_is_down(KEY_LEFT))  target_box_x -= 16;
+                if (key_is_down(KEY_RIGHT)) target_box_x += 16;
+                s16 target_box_y = 66;
+
+                u16 flight = 38;
+                u16 mph = 95;
+                u8 trail = 0;
+
+                if (player_hit_pressed && bz >= 20) {
+                    // MAX POWER ACE!
+                    flight = 28;
+                    mph = 126 + ((g_tennis.game_frame & 7) * 2);
+                    trail = 2; // Yellow lightning trail
+                    graphics_trigger_shake(3, 14);
+                    sfx_play_racket_smash();
+                    g_tennis.save_data.total_aces++;
+                    set_announcement("POWER ACE!", 60);
+                } else if (player_hit_pressed) {
+                    // Good Serve
+                    flight = 36;
+                    mph = 100 + (bz * 2);
+                    sfx_play_racket_topspin();
+                    set_announcement("GOOD SERVE!", 45);
+                } else {
+                    // Safe Auto-Hit
+                    flight = 42;
+                    mph = 88;
+                    sfx_play_racket_topspin();
+                    set_announcement("SAFE SERVE", 40);
+                }
+
+                g_tennis.last_serve_mph = mph;
+                if (mph > g_tennis.save_data.max_serve_speed) {
+                    g_tennis.save_data.max_serve_speed = mph;
+                }
+
+                launch_ball(g_tennis.ball.x, g_tennis.ball.y, g_tennis.ball.z,
+                            INT_TO_FP(target_box_x), INT_TO_FP(target_box_y),
+                            flight, SHOT_SERVE, 0, trail);
+
+                p->is_serving = false;
+                g_tennis.state = STATE_MATCH_RALLY;
             }
-
-            launch_ball(g_tennis.ball.x, g_tennis.ball.y, g_tennis.ball.z,
-                        INT_TO_FP(target_box_x), INT_TO_FP(target_box_y),
-                        flight, SHOT_SERVE, 0, trail);
-
-            g_tennis.state = STATE_MATCH_RALLY;
+            return;
         }
-        return;
     }
 
     // =========================================================================
