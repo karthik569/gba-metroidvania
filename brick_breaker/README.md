@@ -96,15 +96,15 @@ Destroying colored and armored bricks has a chance to drop special capsules:
 * **Victory Reward:** Shattering the Master AI Core unlocks **Zone 3 (Neon Overdrive)** in battery SRAM!
 
 ### The AI Overlord Core (Stage 30 Final Boss) 🤖🔥
-* **Structure:** Colossal 3-phase multi-part final boss (30 HP) commanding orbital quantum satellites and gravitational distortion fields!
+* **Structure:** Colossal 3-phase multi-part final boss (24 HP) commanding orbital quantum satellites, laser-dampening armor, and gravitational distortion fields!
 * **Phase 1: Quantum Satellites & Force Field:**
   * The Core is invulnerable behind a shimmering force field.
-  * Protected by two orbiting **Quantum Satellites** (15 HP each) that dynamically sweep across the playfield.
-  * Destroying both satellites shatters the force field with a massive concussive blast!
+  * Protected by two orbiting **Quantum Satellites** (8 HP each) that dynamically sweep across the playfield.
+  * Destroying both satellites shatters the force field with a massive concussive blast and screen banner!
 * **Phase 2: Active Gravitational Singularity & Twin Lasers:**
   * The exposed Core activates an internal **Gravitational Singularity Well**, curving balls toward it while firing twin seeking laser blasters at the paddle.
 * **Phase 3: Hyper Meltdown Overdrive:**
-  * At $\le 50\%$ HP (15 HP), the Core enters meltdown! The chassis flashes blazing crimson/gold, speed accelerates, and the core unleashes 3-way spread laser bolts while dropping falling **Cyber-Mines** that detonate on contact with the paddle!
+  * At $\le 50\%$ HP (12 HP), the Core enters meltdown! The chassis flashes blazing crimson/gold, speed accelerates, and the core unleashes 3-way spread laser bolts while dropping falling **Cyber-Mines** that detonate on contact with the paddle!
 * **Grand Master Victory:**
   * Shattering the AI Overlord Core triggers a 120-frame cascading core detonation sequence, screen-shaking explosion fanfare, and the **Grand Master Cyber Breaker** ending screen!
 

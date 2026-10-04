@@ -32,6 +32,7 @@ static PowerUpType s_pwr_toast_type = PWR_NONE;
 static u8 s_shield_hits = 0;
 static u16 s_mega_timer = 0;
 static Boss s_boss;
+static u8 s_boss_laser_hits = 0;
 static WarpPortal s_portals[MAX_WARP_PORTALS];
 static GravityWell s_gravity_wells[MAX_GRAVITY_WELLS];
 
@@ -619,6 +620,33 @@ static void update_hud_text(void) {
     draw_number(24, 5, s_score, 6);
     draw_number(26, 8, s_current_stage, 2);
 
+    if (s_boss.active && s_boss.phase != BOSS_PHASE_DYING) {
+        draw_text(24, 10, " BOSS ");
+        if (s_boss.phase == BOSS_PHASE_SHIELDED) {
+            draw_text(24, 11, "SHIELD");
+            u8 pods_left = (s_boss.pods[0].active ? 1 : 0) + (s_boss.pods[1].active ? 1 : 0);
+            if (pods_left == 2) draw_text(24, 12, "2 PODS");
+            else if (pods_left == 1) draw_text(24, 12, "1 POD ");
+            else draw_text(24, 12, "DOWN  ");
+            draw_text(24, 13, "ARMORD");
+        } else {
+            draw_text(24, 11, (s_boss.phase == BOSS_PHASE_ENRAGED) ? "OVERDR" : " CORE ");
+            draw_text(24, 12, "HP:   ");
+            draw_number(27, 12, (s_boss.hp > 0) ? s_boss.hp : 0, 2);
+            if (s_boss.phase == BOSS_PHASE_ENRAGED) {
+                draw_text(24, 13, "DANGER");
+            } else if (s_boss.hp <= 6) {
+                draw_text(24, 13, "CRITCL");
+            } else {
+                draw_text(24, 13, "VULNER");
+            }
+        }
+        return;
+    }
+
+    draw_text(24, 10, "ITEM  ");
+    draw_text(24, 13, "      ");
+
     PowerUpType display_pwr = s_paddle.active_pwr;
     if (s_pwr_toast_timer > 0 && s_pwr_toast_type == PWR_LIFE) {
         display_pwr = PWR_LIFE;
@@ -691,48 +719,46 @@ void game_init(void) {
 }
 
 #define BALL_BASE_SPEED     480  // 1.875 px/f in 8.8 fixed point (smooth & consistent)
+#define BALL_MAX_SPEED      720  // 2.8125 px/f (1.5x base speed ceiling)
 #define BALL_SLOW_SPEED     384  // 1.500 px/f (when [S] slow power-up active)
 
-// Set ball reflection vector based on contact offset from paddle center, guaranteeing constant speed
+// Set ball reflection vector based on continuous contact offset from paddle center and paddle momentum ("English")
 static void apply_ball_deflection(Ball* ball, s16 hit_offset, s16 half_w) {
     if (half_w <= 0) half_w = 16;
-    s16 ratio = (hit_offset * 100) / half_w; // -100 to +100
+    if (hit_offset < -half_w) hit_offset = -half_w;
+    if (hit_offset > half_w) hit_offset = half_w;
+
+    // Continuous ratio from -100 to +100
+    s16 ratio = (hit_offset * 100) / half_w;
     fixed_t spd = ball->speed;
     if (spd <= 0) spd = BALL_BASE_SPEED;
 
-    fixed_t vx = 0;
-    fixed_t vy = -spd;
+    // Smooth continuous angle mapping: up to ~85% of speed horizontally at outer tips
+    fixed_t vx = ((s32)spd * ratio * 85) / 10000;
 
-    if (ratio < -75) {
-        // Sharp Left (~60 degrees): 87% H, 50% V
-        vx = - (spd * 87) / 100;
-        vy = - (spd * 50) / 100;
-    } else if (ratio < -35) {
-        // Mid Left (~45 degrees): 71% H, 71% V
-        vx = - (spd * 71) / 100;
-        vy = - (spd * 71) / 100;
-    } else if (ratio < -10) {
-        // Shallow Left (~25 degrees): 42% H, 91% V
-        vx = - (spd * 42) / 100;
-        vy = - (spd * 91) / 100;
-    } else if (ratio <= 10) {
-        // Center (~10 degrees with slight directional bias so ball never loops vertically)
-        s16 dir = (s_paddle.vx > 0) ? 1 : ((s_paddle.vx < 0) ? -1 : ((ball->vx >= 0) ? 1 : -1));
-        vx = dir * (spd * 17) / 100;
-        vy = - (spd * 98) / 100;
-    } else if (ratio <= 35) {
-        // Shallow Right (~25 degrees)
-        vx = (spd * 42) / 100;
-        vy = - (spd * 91) / 100;
-    } else if (ratio <= 75) {
-        // Mid Right (~45 degrees)
-        vx = (spd * 71) / 100;
-        vy = - (spd * 71) / 100;
-    } else {
-        // Sharp Right (~60 degrees)
-        vx = (spd * 87) / 100;
-        vy = - (spd * 50) / 100;
+    // Impart paddle horizontal momentum ("English" / spin)
+    if (s_paddle.vx != 0) {
+        fixed_t english = (s_paddle.vx * 15) / 100;
+        vx += english;
     }
+
+    // Ensure ball never bounces purely vertically (avoid vertical deadlock loops)
+    fixed_t min_vx = (spd * 15) / 100;
+    if (vx >= 0 && vx < min_vx) vx = min_vx;
+    else if (vx < 0 && vx > -min_vx) vx = -min_vx;
+
+    // Ensure ball never bounces purely horizontally (guarantee vertical progress)
+    fixed_t max_vx = (spd * 88) / 100;
+    if (vx > max_vx) vx = max_vx;
+    else if (vx < -max_vx) vx = -max_vx;
+
+    // Calculate vertical speed mathematically to preserve exact constant kinetic speed:
+    // vy = -sqrt(spd^2 - vx^2)
+    s32 spd_sq = (s32)spd * spd;
+    s32 vx_sq = (s32)vx * vx;
+    s32 vy_sq = spd_sq - vx_sq;
+    if (vy_sq < 0) vy_sq = 0;
+    fixed_t vy = -(fixed_t)int_sqrt((u32)vy_sq);
 
     ball->vx = vx;
     ball->vy = vy;
@@ -760,6 +786,8 @@ static void reset_paddle_and_ball(void) {
     s_balls[0].y = s_paddle.y - INT_TO_FP(8);
     s_balls[0].speed = BALL_BASE_SPEED;
     s_balls[0].speed_tier = 0;
+    s_balls[0].portal_cooldown = 0;
+    s_balls[0].paddle_hits = 0;
     s_balls[0].vx = (BALL_BASE_SPEED * 42) / 100;
     s_balls[0].vy = - (BALL_BASE_SPEED * 91) / 100;
 
@@ -822,21 +850,23 @@ static void init_boss(u8 stage) {
         s_boss.pods[1].hp = 6;
     } else {
         // Stage 30: The AI Overlord Core
-        s_boss.max_hp = 30;
-        s_boss.hp = 30;
+        s_boss.max_hp = 24;
+        s_boss.hp = 24;
         s_boss.shoot_timer = 70;
         s_boss.pods[0].active = true;
         s_boss.pods[0].x = INT_TO_FP(44);
         s_boss.pods[0].y = INT_TO_FP(24);
-        s_boss.pods[0].hp = 15;
+        s_boss.pods[0].hp = 8;
 
         s_boss.pods[1].active = true;
         s_boss.pods[1].x = INT_TO_FP(132);
         s_boss.pods[1].y = INT_TO_FP(24);
-        s_boss.pods[1].hp = 15;
+        s_boss.pods[1].hp = 8;
     }
 
+    s_boss_laser_hits = 0;
     bgm_boss_start();
+    update_hud_text();
 }
 
 static void update_boss(void) {
@@ -907,6 +937,9 @@ static void update_boss(void) {
         s_boss.phase = BOSS_PHASE_EXPOSED;
         sfx_boss_pod_destroyed();
         trigger_screen_shake(3, 14);
+        draw_text(3, 1, ">> FORCE FIELD DOWN <<");
+        s_pwr_toast_timer = 90;
+        update_hud_text();
     }
 
     // Bolt firing
@@ -1449,21 +1482,21 @@ static void apply_powerup(PowerUpType type) {
     switch (type) {
         case PWR_WIDE:
             s_paddle.width = 48;
-            s_paddle.laser_equipped = false;
             s_paddle.catch_equipped = false;
+            s_paddle.active_pwr = PWR_WIDE;
             draw_text(3, 1, ">> EXPAND PADDLE <<");
             break;
         case PWR_LASER:
-            s_paddle.width = 32;
             s_paddle.laser_equipped = true;
             s_paddle.catch_equipped = false;
+            s_paddle.active_pwr = PWR_LASER;
             draw_text(3, 1, ">>  LASER CANNON <<");
             break;
         case PWR_MULTI:
             draw_text(3, 1, ">>   MULTI-BALL  <<");
             // Spawn 2 extra balls from active ball with exact consistent speed
             for (int i = 0; i < MAX_BALLS; i++) {
-                if (s_balls[i].active) {
+                if (s_balls[i].active && !s_balls[i].stuck_to_paddle) {
                     fixed_t cur_spd = s_balls[i].speed;
                     if (cur_spd <= 0) cur_spd = BALL_BASE_SPEED;
                     for (int j = 0; j < MAX_BALLS; j++) {
@@ -1474,6 +1507,7 @@ static void apply_powerup(PowerUpType type) {
                             s_balls[j].y = s_balls[i].y;
                             s_balls[j].speed = cur_spd;
                             s_balls[j].speed_tier = s_balls[i].speed_tier;
+                            s_balls[j].paddle_hits = s_balls[i].paddle_hits;
                             s_balls[j].vx = (j == 1) ? - (cur_spd * 71) / 100 : (cur_spd * 71) / 100;
                             s_balls[j].vy = - (cur_spd * 71) / 100;
                         }
@@ -1484,6 +1518,8 @@ static void apply_powerup(PowerUpType type) {
             break;
         case PWR_CATCH:
             s_paddle.catch_equipped = true;
+            s_paddle.laser_equipped = false;
+            s_paddle.active_pwr = PWR_CATCH;
             draw_text(3, 1, ">>  CATCH MAGNET <<");
             break;
         case PWR_SLOW:
@@ -1492,6 +1528,7 @@ static void apply_powerup(PowerUpType type) {
                 if (s_balls[i].active) {
                     s_balls[i].speed = BALL_SLOW_SPEED;
                     s_balls[i].speed_tier = 0;
+                    s_balls[i].paddle_hits = 0;
                     if (s_balls[i].vx < 0) s_balls[i].vx = - (BALL_SLOW_SPEED * 71) / 100;
                     else s_balls[i].vx = (BALL_SLOW_SPEED * 71) / 100;
                     if (s_balls[i].vy < 0) s_balls[i].vy = - (BALL_SLOW_SPEED * 71) / 100;
@@ -1712,16 +1749,16 @@ static void update_playing(void) {
             s16 dx = wx - cur_bx;
             s16 dy = wy - cur_by;
             s32 dist_sq = (s32)dx * dx + (s32)dy * dy;
-            if (dist_sq <= 3600 && dist_sq > 25) { // 60px radius
+            if (dist_sq <= 3600 && dist_sq > 49) { // 60px radius
                 u16 dist = int_sqrt((u32)dist_sq);
                 if (dist > 0) {
-                    fixed_t g_acc = (s_boss.phase == BOSS_PHASE_ENRAGED) ? 30 : 22;
+                    fixed_t g_acc = (s_boss.phase == BOSS_PHASE_ENRAGED) ? 18 : 12;
                     fixed_t fx = ((fixed_t)dx * g_acc) / dist;
                     fixed_t fy = ((fixed_t)dy * g_acc) / dist;
                     s_balls[b].vx += fx;
                     s_balls[b].vy += fy;
 
-                    fixed_t max_v = INT_TO_FP(3) + (INT_TO_FP(1) / 2);
+                    fixed_t max_v = INT_TO_FP(3);
                     if (s_balls[b].vx > max_v) s_balls[b].vx = max_v;
                     if (s_balls[b].vx < -max_v) s_balls[b].vx = -max_v;
                     if (s_balls[b].vy > max_v) s_balls[b].vy = max_v;
@@ -1828,6 +1865,17 @@ static void update_playing(void) {
                 s_balls[b].y = INT_TO_FP(py - 8);
                 s16 half_w = s_paddle.width / 2;
                 s16 hit_offset = (bx + 4) - (px + half_w);
+
+                // Progressive volley escalation: +4% speed every 6 paddle bounces up to ceiling
+                s_balls[b].paddle_hits++;
+                if (s_balls[b].paddle_hits >= 6) {
+                    s_balls[b].paddle_hits = 0;
+                    if (s_balls[b].speed < BALL_MAX_SPEED) {
+                        s_balls[b].speed += (BALL_BASE_SPEED * 4) / 100;
+                        if (s_balls[b].speed > BALL_MAX_SPEED) s_balls[b].speed = BALL_MAX_SPEED;
+                    }
+                }
+
                 apply_ball_deflection(&s_balls[b], hit_offset, half_w);
                 sfx_bounce();
             }
@@ -1932,6 +1980,7 @@ static void update_playing(void) {
                             trigger_screen_shake(2, 10);
                             spawn_particles(px_pod + 8, py_pod + 8, 7);
                             s_score += (s_boss.boss_type == 30) ? 2000 : 1000;
+                            update_hud_text();
                         }
                         break;
                     }
@@ -1954,7 +2003,13 @@ static void update_playing(void) {
                     sfx_boss_hurt();
                     trigger_screen_shake(2, 8);
                     spawn_particles(cur_bx + 4, cur_by + 4, 1);
-                    if (s_boss.hp <= s_boss.max_hp / 2) s_boss.phase = BOSS_PHASE_ENRAGED;
+                    if (s_boss.hp <= s_boss.max_hp / 2 && s_boss.phase == BOSS_PHASE_EXPOSED) {
+                        s_boss.phase = BOSS_PHASE_ENRAGED;
+                        sfx_core_laser();
+                        trigger_screen_shake(3, 20);
+                        draw_text(3, 1, ">> MELTDOWN OVERDRIVE <<");
+                        s_pwr_toast_timer = 90;
+                    }
                     if (s_boss.hp <= 0) {
                         s_boss.phase = BOSS_PHASE_DYING;
                         s_boss.death_timer = 0;
@@ -1962,6 +2017,7 @@ static void update_playing(void) {
                         sfx_boss_defeat();
                         bgm_boss_stop();
                     }
+                    update_hud_text();
                 }
             }
 
@@ -2106,6 +2162,14 @@ static void update_playing(void) {
                         if (rng_next() % 100 < 22) spawn_capsule(PLAYFIELD_X_MIN + col * 16, BRICK_START_Y + row * 8);
                     }
 
+                    // Upper-tier brick acceleration (Silver & Cyan)
+                    if (type == BRK_SILVER || type == BRK_CYAN) {
+                        if (s_balls[b].speed < BALL_MAX_SPEED) {
+                            s_balls[b].speed += (BALL_BASE_SPEED * 4) / 100;
+                            if (s_balls[b].speed > BALL_MAX_SPEED) s_balls[b].speed = BALL_MAX_SPEED;
+                        }
+                    }
+
                     if (s_score > s_high_score) {
                         s_high_score = s_score;
                         save_set_high_score(s_high_score);
@@ -2205,6 +2269,7 @@ static void update_playing(void) {
                             trigger_screen_shake(2, 10);
                             spawn_particles(px_pod + 8, py_pod + 8, 7);
                             s_score += (s_boss.boss_type == 30) ? 2000 : 1000;
+                            update_hud_text();
                         }
                         break;
                     }
@@ -2221,18 +2286,32 @@ static void update_playing(void) {
                     sfx_kinetic_hit();
                     spawn_particles(lx, ly, 7);
                 } else {
-                    s_boss.hp--;
-                    s_boss.invuln_flash = 6;
-                    sfx_boss_hurt();
-                    spawn_particles(lx, ly, 1);
-                    if (s_boss.hp <= s_boss.max_hp / 2) s_boss.phase = BOSS_PHASE_ENRAGED;
-                    if (s_boss.hp <= 0) {
-                        s_boss.phase = BOSS_PHASE_DYING;
-                        s_boss.death_timer = 0;
-                        s_score += (s_boss.boss_type == 30) ? 15000 : 5000;
-                        sfx_boss_defeat();
-                        bgm_boss_stop();
+                    s_boss_laser_hits++;
+                    // Armored boss core absorbs every 2nd laser hit
+                    if ((s_boss_laser_hits & 1) == 0) {
+                        sfx_kinetic_hit();
+                        spawn_particles(lx, ly, 7);
+                    } else {
+                        s_boss.hp--;
+                        s_boss.invuln_flash = 6;
+                        sfx_boss_hurt();
+                        spawn_particles(lx, ly, 1);
+                        if (s_boss.hp <= s_boss.max_hp / 2 && s_boss.phase == BOSS_PHASE_EXPOSED) {
+                            s_boss.phase = BOSS_PHASE_ENRAGED;
+                            sfx_core_laser();
+                            trigger_screen_shake(3, 20);
+                            draw_text(3, 1, ">> MELTDOWN OVERDRIVE <<");
+                            s_pwr_toast_timer = 90;
+                        }
+                        if (s_boss.hp <= 0) {
+                            s_boss.phase = BOSS_PHASE_DYING;
+                            s_boss.death_timer = 0;
+                            s_score += (s_boss.boss_type == 30) ? 15000 : 5000;
+                            sfx_boss_defeat();
+                            bgm_boss_stop();
+                        }
                     }
+                    update_hud_text();
                 }
                 continue;
             }

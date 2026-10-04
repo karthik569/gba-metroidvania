@@ -84,6 +84,7 @@ typedef struct {
     s16 stuck_offset_x;
     u8 speed_tier;
     u8 portal_cooldown;
+    u8 paddle_hits;
 } Ball;
 
 typedef struct {
