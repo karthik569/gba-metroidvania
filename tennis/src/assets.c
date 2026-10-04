@@ -79,11 +79,11 @@ static const u16 s_obj_palettes[5][16] = {
     // 0: PAL_OBJ_PLAYER (Near player: white polo, navy shorts, gold racket)
     {
         RGB15(0, 0, 0),       // 0: Transparent
-        RGB15(2, 2, 3),       // 1: Dark Outline
+        RGB15(4, 5, 8),       // 1: Soft Dark Navy Outline
         RGB15(16, 17, 20),    // 2: Polo Shadow
         RGB15(31, 31, 31),    // 3: Polo Crisp White
-        RGB15(2, 4, 14),      // 4: Navy Shorts
-        RGB15(6, 12, 26),     // 5: Shorts Highlight
+        RGB15(3, 5, 16),      // 4: Navy Shorts
+        RGB15(7, 14, 28),     // 5: Shorts Highlight
         RGB15(22, 14, 8),     // 6: Skin Shadow
         RGB15(30, 22, 16),    // 7: Skin Light
         RGB15(12, 7, 3),      // 8: Hair Brown
@@ -93,14 +93,14 @@ static const u16 s_obj_palettes[5][16] = {
         RGB15(31, 31, 31),    // 12: Shoes White
         RGB15(0, 0, 0), RGB15(0, 0, 0), RGB15(0, 0, 0)
     },
-    // 1: PAL_OBJ_OPPONENT (Far opponent: crimson polo, black shorts)
+    // 1: PAL_OBJ_OPPONENT (Far opponent: crimson polo, slate shorts)
     {
         RGB15(0, 0, 0),       // 0: Transparent
-        RGB15(2, 2, 2),       // 1: Outline
+        RGB15(5, 3, 3),       // 1: Soft Charcoal Outline
         RGB15(14, 2, 2),      // 2: Crimson Shadow
         RGB15(28, 4, 4),      // 3: Crimson Polo Bright
-        RGB15(3, 3, 3),       // 4: Black Shorts
-        RGB15(8, 8, 8),       // 5: Shorts Highlight
+        RGB15(5, 5, 7),       // 4: Dark Slate Shorts
+        RGB15(10, 10, 12),    // 5: Shorts Highlight
         RGB15(20, 12, 8),     // 6: Skin Shadow
         RGB15(28, 20, 14),    // 7: Skin Light
         RGB15(4, 4, 4),       // 8: Dark Hair
@@ -112,13 +112,13 @@ static const u16 s_obj_palettes[5][16] = {
     // 2: PAL_OBJ_BALL (Optic tennis yellow ball, drop shadow, chalk puff)
     {
         RGB15(0, 0, 0),       // 0: Transparent
-        RGB15(1, 2, 1),       // 1: Ball Outline / Court Shadow Dark
+        RGB15(6, 10, 3),      // 1: Ball Outline / Olive Shadow Core
         RGB15(18, 24, 2),     // 2: Ball Shading Yellow-Green
         RGB15(28, 31, 4),     // 3: Optic Yellow Ball Core
-        RGB15(31, 31, 20),    // 4: Ball Felt Specular
+        RGB15(31, 31, 18),    // 4: Ball Felt Specular
         RGB15(31, 31, 31),    // 5: Ball Seam / Chalk Puff White
         RGB15(20, 20, 22),    // 6: Chalk Dust Gray
-        RGB15(2, 3, 2),       // 7: Translucent Ground Shadow
+        RGB15(10, 16, 6),     // 7: Soft Ambient Ground Shadow
         RGB15(0, 0, 0), RGB15(0, 0, 0), RGB15(0, 0, 0), RGB15(0, 0, 0), RGB15(0, 0, 0), RGB15(0, 0, 0), RGB15(0, 0, 0), RGB15(0, 0, 0)
     },
     // 3: PAL_OBJ_VFX (Swing trails: red topspin, blue slice, yellow smash/ace)
@@ -238,7 +238,7 @@ static void build_font_tile(u16 tile_id, const u8 glyph[5]) {
         u8 bits = glyph[col];
         for (int row = 0; row < 7; row++) {
             if (bits & (1 << row)) {
-                set_tile_pixel(buf, col + 2, row + 1, 1); // Shadow
+                set_tile_pixel(buf, col + 1, row + 1, 1); // Crisp 1px drop shadow
                 set_tile_pixel(buf, col + 1, row, 4);     // Crisp white
             }
         }
@@ -488,6 +488,160 @@ static void generate_ui_and_stadium_tiles(void) {
     upload_8x8_tile(TILE_COURT_CORNER_TR, buf);
     upload_8x8_tile(TILE_COURT_CORNER_BL, buf);
     upload_8x8_tile(TILE_COURT_CORNER_BR, buf);
+
+    // =========================================================================
+    // Continuous Perspective Sidelines (Clean 1.5-2px line segments)
+    // =========================================================================
+    // Left Sideline Top (Tile 80: connects x=6..7 at y=0 down to x=4..5 at y=7)
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            int lx = 6 - (y * 2) / 7;
+            u8 c = (x >= lx && x <= lx + 1) ? 4 : 2;
+            set_tile_pixel(buf, x, y, c);
+        }
+    }
+    upload_8x8_tile(TILE_COURT_SL_L_TOP, buf);
+
+    // Left Sideline Mid (Tile 81: connects x=4..5 at y=0 down to x=2..3 at y=7)
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            int lx = 4 - (y * 2) / 7;
+            u8 c = (x >= lx && x <= lx + 1) ? 4 : 2;
+            set_tile_pixel(buf, x, y, c);
+        }
+    }
+    upload_8x8_tile(TILE_COURT_SL_L_MID, buf);
+
+    // Left Sideline Bot (Tile 82: connects x=2..3 at y=0 down to x=0..1 at y=7)
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            int lx = 2 - (y * 2) / 7;
+            u8 c = (x >= lx && x <= lx + 1) ? 4 : 2;
+            set_tile_pixel(buf, x, y, c);
+        }
+    }
+    upload_8x8_tile(TILE_COURT_SL_L_BOT, buf);
+
+    // Right Sideline Top (Tile 83: connects x=0..1 at y=0 up to x=2..3 at y=7)
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            int rx = (y * 2) / 7;
+            u8 c = (x >= rx && x <= rx + 1) ? 4 : 2;
+            set_tile_pixel(buf, x, y, c);
+        }
+    }
+    upload_8x8_tile(TILE_COURT_SL_R_TOP, buf);
+
+    // Right Sideline Mid (Tile 84: connects x=2..3 at y=0 up to x=4..5 at y=7)
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            int rx = 2 + (y * 2) / 7;
+            u8 c = (x >= rx && x <= rx + 1) ? 4 : 2;
+            set_tile_pixel(buf, x, y, c);
+        }
+    }
+    upload_8x8_tile(TILE_COURT_SL_R_MID, buf);
+
+    // Right Sideline Bot (Tile 85: connects x=4..5 at y=0 up to x=6..7 at y=7)
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            int rx = 4 + (y * 2) / 7;
+            u8 c = (x >= rx && x <= rx + 1) ? 4 : 2;
+            set_tile_pixel(buf, x, y, c);
+        }
+    }
+    upload_8x8_tile(TILE_COURT_SL_R_BOT, buf);
+
+    // =========================================================================
+    // Stadium Roof Canopy & Side Audience Stands (PAL_BG_STADIUM)
+    // =========================================================================
+    // TILE_STADIUM_ROOF (Tile 86)
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            u8 c = 1; // Deep concrete shadow
+            if (y <= 1) c = 3; // Roof fascia edge
+            else if (y == 2) c = 11; // Steel truss beam
+            else if (x == y || x == 7 - y || x == 3 || x == 4) c = 11; // Truss girder
+            set_tile_pixel(buf, x, y, c);
+        }
+    }
+    upload_8x8_tile(TILE_STADIUM_ROOF, buf);
+
+    // TILE_CROWD_SIDE_L0 (Tile 87): Left Side Grandstand - Frame 0
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            u8 c = 2; // Concrete bleacher
+            if (y == 0) c = 1; // Shadow
+            else if (y == 1) c = 3; // Step highlight
+            else if (y == 2 || y == 3) {
+                if (x == 1 || x == 2 || x == 5 || x == 6) c = 4; // Face skin
+            } else if (y >= 4 && y <= 6) {
+                if (x >= 1 && x <= 3) c = 5; // Red shirt
+                else if (x >= 4 && x <= 7) c = 6; // Blue shirt
+            } else if (y == 7) {
+                c = 1;
+            }
+            set_tile_pixel(buf, x, y, c);
+        }
+    }
+    upload_8x8_tile(TILE_CROWD_SIDE_L0, buf);
+
+    // TILE_CROWD_SIDE_L1 (Tile 88): Left Side Grandstand - Frame 1
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            u8 c = 2;
+            if (y == 0) c = 1;
+            else if (y == 1) c = 3;
+            else if (y == 2 || y == 3) {
+                if (x == 0 || x == 1 || x == 4 || x == 5) c = 4;
+            } else if (y >= 4 && y <= 6) {
+                if (x <= 3) c = 7; // Yellow shirt
+                else c = 8; // Green shirt
+            } else if (y == 7) {
+                c = 1;
+            }
+            set_tile_pixel(buf, x, y, c);
+        }
+    }
+    upload_8x8_tile(TILE_CROWD_SIDE_L1, buf);
+
+    // TILE_CROWD_SIDE_R0 (Tile 89): Right Side Grandstand - Frame 0
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            u8 c = 2;
+            if (y == 0) c = 1;
+            else if (y == 1) c = 3;
+            else if (y == 2 || y == 3) {
+                if (x == 1 || x == 2 || x == 5 || x == 6) c = 4;
+            } else if (y >= 4 && y <= 6) {
+                if (x >= 1 && x <= 3) c = 6; // Blue shirt
+                else if (x >= 4 && x <= 7) c = 7; // Yellow shirt
+            } else if (y == 7) {
+                c = 1;
+            }
+            set_tile_pixel(buf, x, y, c);
+        }
+    }
+    upload_8x8_tile(TILE_CROWD_SIDE_R0, buf);
+
+    // TILE_CROWD_SIDE_R1 (Tile 90): Right Side Grandstand - Frame 1
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            u8 c = 2;
+            if (y == 0) c = 1;
+            else if (y == 1) c = 3;
+            else if (y == 2 || y == 3) {
+                if (x == 2 || x == 3 || x == 6 || x == 7) c = 4;
+            } else if (y >= 4 && y <= 6) {
+                if (x <= 3) c = 8; // Green shirt
+                else c = 5; // Red shirt
+            } else if (y == 7) {
+                c = 1;
+            }
+            set_tile_pixel(buf, x, y, c);
+        }
+    }
+    upload_8x8_tile(TILE_CROWD_SIDE_R1, buf);
 }
 
 // =========================================================================
@@ -547,14 +701,14 @@ static void generate_player_sprites(void) {
         "....13333331....",
         "...1333333331...",
         "...1233333321.AA",
-        "...1714444171A..A",
-        "....14444441.A..A",
-        "....14411441..AA.",
-        "....167..761..1..",
-        "....177..771.....",
-        "....1CC..CC1.....",
-        "....1C1..1C1.....",
-        "....111..111.....",
+        "...1714444171A.A",
+        "....14444441.A.A",
+        "....14411441.AA.",
+        "....167..761..1.",
+        "....177..771....",
+        "....1CC..CC1....",
+        "....1C1..1C1....",
+        "....111..111....",
         "................"
     };
     make_sprite_from_art(SPRITE_PLAYER_READY_0, s_p_ready_0);
@@ -568,14 +722,14 @@ static void generate_player_sprites(void) {
         "....13333331....",
         "...1333333331...",
         "...1233333321.AA",
-        "...1714444171A..A",
-        "....14444441.A..A",
-        "....14411441..AA.",
-        "....167..761..1..",
-        "....177..771.....",
-        "....1CC..CC1.....",
-        "....1C1..1C1.....",
-        "....111..111.....",
+        "...1714444171A.A",
+        "....14444441.A.A",
+        "....14411441.AA.",
+        "....167..761..1.",
+        "....177..771....",
+        "....1CC..CC1....",
+        "....1C1..1C1....",
+        "....111..111....",
         "................"
     };
     make_sprite_from_art(SPRITE_PLAYER_READY_1, s_p_ready_1);
@@ -676,8 +830,8 @@ static void generate_player_sprites(void) {
         "...1333333331...",
         "...1233333321...",
         "...1714444171.AA",
-        "....14444441.A..A",
-        "....14411441.A..A",
+        "....14444441.A.A",
+        "....14411441.A.A",
         "....167..761..AA",
         "....177..771..1.",
         "....1CC..CC1....",
@@ -737,8 +891,8 @@ static void generate_player_sprites(void) {
         ".....177771.....",
         "....13333331....",
         "...1333333331.99",
-        "...12333333219..9",
-        "...17144441719..9",
+        "...12333333219.9",
+        "...17144441719.9",
         "....14444441..99",
         "....14411441..1.",
         "....167..761....",
@@ -757,8 +911,8 @@ static void generate_player_sprites(void) {
         ".....777777.....",
         "....13333331....",
         "...1333333331.99",
-        "...12333333219..9",
-        "...17144441719..9",
+        "...12333333219.9",
+        "...17144441719.9",
         "....14444441..99",
         "....14411441..1.",
         "....167..761....",
@@ -917,10 +1071,10 @@ static void generate_player_sprites(void) {
         "................",
         ".....111111.....",
         "....12344321....",
-        "...125333521...",
-        "...123555321...",
-        "...123555321...",
-        "...125333521...",
+        "...1253333521...",
+        "...1235555321...",
+        "...1235555321...",
+        "...1253333521...",
         "....12333321....",
         ".....111111.....",
         "................",
@@ -971,54 +1125,108 @@ static void generate_player_sprites(void) {
     };
     make_sprite_from_art(SPRITE_CHALK_PUFF, s_chalk_puff);
 
-    // Swing Trails
-    u8 p[16][16];
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            p[y][x] = (y >= 6 && y <= 10 && x >= 2 && x <= 14) ? 2 : 0;
-        }
-    }
-    generate_sprite_16x16(SPRITE_SWING_TRAIL_RED, p);
+    // Dynamic Curved Swing Trails (Topspin Red, Slice Blue, Smash Yellow)
+    static const char* s_swing_trail_red[16] = {
+        "................",
+        "...........33...",
+        "........33222...",
+        "......322211....",
+        "....322211......",
+        "..3222111.......",
+        ".322111.........",
+        ".2211...........",
+        ".211............",
+        ".11.............",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_SWING_TRAIL_RED, s_swing_trail_red);
 
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            p[y][x] = (y >= 6 && y <= 10 && x >= 2 && x <= 14) ? 5 : 0;
-        }
-    }
-    generate_sprite_16x16(SPRITE_SWING_TRAIL_BLUE, p);
+    static const char* s_swing_trail_blue[16] = {
+        "................",
+        "...........66...",
+        "........66555...",
+        "......655544....",
+        "....655544......",
+        "..6555444.......",
+        ".655444.........",
+        ".5544...........",
+        ".544............",
+        ".44.............",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_SWING_TRAIL_BLUE, s_swing_trail_blue);
 
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            p[y][x] = (y >= 6 && y <= 10 && x >= 2 && x <= 14) ? 8 : 0;
-        }
-    }
-    generate_sprite_16x16(SPRITE_SWING_TRAIL_YEL, p);
+    static const char* s_swing_trail_yel[16] = {
+        "................",
+        "...........99...",
+        "........99888...",
+        "......988877....",
+        "....988877......",
+        "..9888777.......",
+        ".988777.........",
+        ".8877...........",
+        ".877............",
+        ".77.............",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_SWING_TRAIL_YEL, s_swing_trail_yel);
 
-    // Target Ring
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            int r2 = (x - 8) * (x - 8) + (y - 8) * (y - 8);
-            u8 c = 0;
-            if (r2 <= 49 && r2 >= 25) c = 10;
-            if (r2 <= 9) c = 11;
-            p[y][x] = c;
-        }
-    }
-    generate_sprite_16x16(SPRITE_TARGET_RING, p);
+    // Target Ring (Clean anti-aliased concentric ring)
+    static const char* s_target_ring[16] = {
+        "......aaaa......",
+        "....aabbbbaa....",
+        "...abb....bba...",
+        "..ab........ba..",
+        "..ab...bb...ba..",
+        ".ab...bbbb...ba.",
+        ".ab...bbbb...ba.",
+        ".ab....bb....ba.",
+        ".ab....bb....ba.",
+        ".ab...bbbb...ba.",
+        ".ab...bbbb...ba.",
+        "..ab...bb...ba..",
+        "..ab........ba..",
+        "...abb....bba...",
+        "....aabbbbaa....",
+        "......aaaa......"
+    };
+    make_sprite_from_art(SPRITE_TARGET_RING, s_target_ring);
 
-    // Gold Trophy
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            u8 c = 0;
-            if (y >= 2 && y <= 7 && x >= 5 && x <= 10) c = 3;
-            if (y >= 4 && y <= 6 && (x == 3 || x == 12)) c = 3;
-            if (y >= 8 && y <= 10 && (x == 7 || x == 8)) c = 2;
-            if (y >= 11 && y <= 13 && x >= 4 && x <= 11) c = 1;
-            if (y == 3 && x == 6) c = 5;
-            p[y][x] = c;
-        }
-    }
-    generate_sprite_16x16(SPRITE_TROPHY_GOLD, p);
+    // Championship Gold Trophy
+    static const char* s_trophy_gold[16] = {
+        "................",
+        "....33333333....",
+        "...3344444433...",
+        "..33.454443.33..",
+        "..33.444443.33..",
+        "...33.4443.33...",
+        "....33.43.33....",
+        ".....332233.....",
+        "......2222......",
+        "......2222......",
+        ".....222222.....",
+        "....11111111....",
+        "...1111111111...",
+        "................",
+        "................",
+        "................"
+    };
+    make_sprite_from_art(SPRITE_TROPHY_GOLD, s_trophy_gold);
 }
 
 void assets_load_tiles(void) {

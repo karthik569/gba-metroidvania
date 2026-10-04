@@ -901,6 +901,16 @@ static void update_opponent_ai(void) {
     if (dy > INT_TO_FP(3))  opp->y += ai_spd;
     else if (dy < -INT_TO_FP(3)) opp->y -= ai_spd;
 
+    // Strict boundary clamping so opponent never crosses net or runs off-court
+    s16 cy_opp = FP_TO_INT(opp->y);
+    if (cy_opp < BASELINE_FAR_Y - 4) opp->y = INT_TO_FP(BASELINE_FAR_Y - 4);
+    if (cy_opp > NET_Y - 14) opp->y = INT_TO_FP(NET_Y - 14);
+
+    s16 ohw = get_court_half_width(FP_TO_INT(opp->y));
+    s16 cx_opp = FP_TO_INT(opp->x);
+    if (cx_opp < 120 - ohw - 6) opp->x = INT_TO_FP(120 - ohw - 6);
+    if (cx_opp > 120 + ohw + 6) opp->x = INT_TO_FP(120 + ohw + 6);
+
     // AI Strike Contact
     s16 ox = FP_TO_INT(opp->x);
     s16 oy = FP_TO_INT(opp->y);
@@ -1197,30 +1207,33 @@ void game_draw(void) {
     // Render Scoreboard HUD on BG0
     graphics_clear_bg0();
 
+    // Living stadium crowd animation
+    bool crowd_cheering = (g_tennis.current_rally >= 6 || g_tennis.state == STATE_MATCH_POINT_OVER);
+    graphics_animate_crowd(g_tennis.game_frame, crowd_cheering);
+
     if (g_tennis.state == STATE_TARGET_PRACTICE) {
-        graphics_draw_box(0, 0, 30, 3, PAL_BG_SCOREBOARD);
-        graphics_print_text(1, 1, "SCORE", PAL_BG_SCOREBOARD);
-        graphics_print_num(7, 1, g_tennis.target_score, 6, PAL_BG_SCOREBOARD);
+        graphics_draw_box(4, 0, 22, 3, PAL_BG_SCOREBOARD);
+        graphics_print_text(5, 1, "PTS", PAL_BG_SCOREBOARD);
+        graphics_print_num(9, 1, g_tennis.target_score, 5, PAL_BG_SCOREBOARD);
 
-        graphics_print_text(15, 1, "COMBO", PAL_BG_SCOREBOARD);
-        graphics_print_num(21, 1, g_tennis.target_combo, 2, PAL_BG_SCOREBOARD);
+        graphics_print_text(15, 1, "X", PAL_BG_SCOREBOARD);
+        graphics_print_num(16, 1, g_tennis.target_combo, 2, PAL_BG_SCOREBOARD);
 
-        graphics_print_text(24, 1, "T:", PAL_BG_SCOREBOARD);
-        graphics_print_num(26, 1, g_tennis.target_timer / 60, 2, PAL_BG_SCOREBOARD);
+        graphics_print_text(19, 1, "T:", PAL_BG_SCOREBOARD);
+        graphics_print_num(22, 1, g_tennis.target_timer / 60, 2, PAL_BG_SCOREBOARD);
     } else {
-        // Standard Match Scoreboard
-        graphics_draw_box(0, 0, 30, 3, PAL_BG_SCOREBOARD);
-        graphics_print_text(1, 1, "YOU", PAL_BG_SCOREBOARD);
-        graphics_print_num(5, 1, g_tennis.player_games, 1, PAL_BG_SCOREBOARD);
-        graphics_print_text(7, 1, s_point_names[g_tennis.player_points], PAL_BG_SCOREBOARD);
+        // Standard Match Scoreboard: compact broadcast bug leaving audience visible
+        graphics_draw_box(4, 0, 22, 3, PAL_BG_SCOREBOARD);
+        graphics_print_text(5, 1, "YOU", PAL_BG_SCOREBOARD);
+        graphics_print_num(9, 1, g_tennis.player_games, 1, PAL_BG_SCOREBOARD);
+        graphics_print_text(11, 1, s_point_names[g_tennis.player_points], PAL_BG_SCOREBOARD);
 
-        graphics_print_text(11, 1, "OPP", PAL_BG_SCOREBOARD);
-        graphics_print_num(15, 1, g_tennis.opponent_games, 1, PAL_BG_SCOREBOARD);
-        graphics_print_text(17, 1, s_point_names[g_tennis.opponent_points], PAL_BG_SCOREBOARD);
+        graphics_print_text(14, 1, "OPP", PAL_BG_SCOREBOARD);
+        graphics_print_num(18, 1, g_tennis.opponent_games, 1, PAL_BG_SCOREBOARD);
+        graphics_print_text(20, 1, s_point_names[g_tennis.opponent_points], PAL_BG_SCOREBOARD);
 
         if (g_tennis.last_serve_mph > 0) {
-            graphics_print_num(21, 1, g_tennis.last_serve_mph, 3, PAL_BG_SCOREBOARD);
-            graphics_print_text(25, 1, "MPH", PAL_BG_SCOREBOARD);
+            graphics_print_num(22, 1, g_tennis.last_serve_mph, 3, PAL_BG_SCOREBOARD);
         }
     }
 

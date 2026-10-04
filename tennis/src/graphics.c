@@ -141,21 +141,45 @@ void graphics_render_court(CourtSurface surface) {
     graphics_clear_bg1();
     graphics_clear_bg2();
 
-    // 1. BG1: Stadium Grandstands & Crowd in Rows 0..2
-    for (u8 y = 0; y < 3; y++) {
+    // 1. BG1: Stadium Grandstands & Audience
+    // Row 0: Stadium Roof Canopy (cols 0..4 and 25..29) and Center Upper Bleachers
+    for (u8 x = 0; x < 30; x++) {
+        u16 roof = (x <= 4 || x >= 25) ? TILE_STADIUM_ROOF : TILE_CROWD_0;
+        graphics_set_bg1_tile(x, 0, roof, PAL_BG_STADIUM);
+    }
+
+    // Rows 1..2: Grandstand Crowd Spectators across all 30 columns
+    for (u8 y = 1; y < 3; y++) {
         for (u8 x = 0; x < 30; x++) {
             u16 crowd_tile = ((x + y) & 1) ? TILE_CROWD_0 : TILE_CROWD_1;
             graphics_set_bg1_tile(x, y, crowd_tile, PAL_BG_STADIUM);
         }
     }
 
-    // Row 3: Stadium Wall & Sponsor Banners
+    // Row 3: Stadium Concrete Wall & Sponsor Banners
     for (u8 x = 0; x < 30; x++) {
         u16 banner = (x >= 8 && x <= 21) ? TILE_SPONSOR_BANNER : TILE_STADIUM_WALL;
         graphics_set_bg1_tile(x, 3, banner, PAL_BG_STADIUM);
     }
 
-    // Net on Row 9 (Y=72..79)
+    // Rows 4..19 on BG1: Side Audience Stands flanking the court
+    for (u8 y = 4; y < 20; y++) {
+        // Left Grandstand: cols 0..2 crowd, col 3 perimeter barrier
+        for (u8 x = 0; x < 3; x++) {
+            u16 l_crowd = ((x + y) & 1) ? TILE_CROWD_SIDE_L0 : TILE_CROWD_SIDE_L1;
+            graphics_set_bg1_tile(x, y, l_crowd, PAL_BG_STADIUM);
+        }
+        graphics_set_bg1_tile(3, y, TILE_STADIUM_WALL, PAL_BG_STADIUM);
+
+        // Right Grandstand: col 26 perimeter barrier, cols 27..29 crowd
+        graphics_set_bg1_tile(26, y, TILE_STADIUM_WALL, PAL_BG_STADIUM);
+        for (u8 x = 27; x < 30; x++) {
+            u16 r_crowd = ((x + y) & 1) ? TILE_CROWD_SIDE_R0 : TILE_CROWD_SIDE_R1;
+            graphics_set_bg1_tile(x, y, r_crowd, PAL_BG_STADIUM);
+        }
+    }
+
+    // Net on Row 9 (Y=72..79) on BG1
     // Net posts at col 6 and 23
     graphics_set_bg1_tile(6, 9, TILE_NET_POST_L, PAL_BG_STADIUM);
     graphics_set_bg1_tile(23, 9, TILE_NET_POST_R, PAL_BG_STADIUM);
@@ -163,36 +187,40 @@ void graphics_render_court(CourtSurface surface) {
     for (u8 x = 7; x <= 22; x++) {
         graphics_set_bg1_tile(x, 9, TILE_NET_MESH, PAL_BG_STADIUM);
     }
-    // Umpire chair on right at col 24
+    // Umpire chair on right at col 24, 25
     graphics_set_bg1_tile(24, 8, TILE_UMPIRE_CHAIR_T, PAL_BG_STADIUM);
     graphics_set_bg1_tile(24, 9, TILE_UMPIRE_CHAIR_B, PAL_BG_STADIUM);
 
-    // 2. BG2: Court Surface & Lines in Rows 4..19
+    // 2. BG2: Court Surface & Lines in Rows 4..19 (cols 4..25 only, sides left empty for crowd)
     for (u8 y = 4; y < 20; y++) {
-        for (u8 x = 0; x < 30; x++) {
+        for (u8 x = 4; x <= 25; x++) {
             graphics_set_bg2_tile(x, y, TILE_COURT_SURFACE, court_pal);
         }
     }
 
     // Far Baseline (Row 4): cols 9..20
-    for (u8 x = 9; x <= 20; x++) {
+    for (u8 x = 10; x <= 19; x++) {
         graphics_set_bg2_tile(x, 4, TILE_COURT_LINE_H, court_pal);
     }
+    graphics_set_bg2_tile(9, 4, TILE_COURT_CORNER_TL, court_pal);
+    graphics_set_bg2_tile(20, 4, TILE_COURT_CORNER_TR, court_pal);
 
     // Far Service Line (Row 7): cols 9..20
     for (u8 x = 9; x <= 20; x++) {
         graphics_set_bg2_tile(x, 7, TILE_COURT_LINE_H, court_pal);
     }
 
-    // Near Service Line (Row 13): cols 6..23
-    for (u8 x = 6; x <= 23; x++) {
+    // Near Service Line (Row 13): cols 7..22
+    for (u8 x = 7; x <= 22; x++) {
         graphics_set_bg2_tile(x, 13, TILE_COURT_LINE_H, court_pal);
     }
 
     // Near Baseline (Row 17): cols 5..24
-    for (u8 x = 5; x <= 24; x++) {
+    for (u8 x = 6; x <= 23; x++) {
         graphics_set_bg2_tile(x, 17, TILE_COURT_LINE_H, court_pal);
     }
+    graphics_set_bg2_tile(5, 17, TILE_COURT_CORNER_BL, court_pal);
+    graphics_set_bg2_tile(24, 17, TILE_COURT_CORNER_BR, court_pal);
 
     // Center Service Line (Col 14, between rows 7 and 13)
     for (u8 y = 8; y <= 12; y++) {
@@ -201,38 +229,65 @@ void graphics_render_court(CourtSurface surface) {
     graphics_set_bg2_tile(14, 7, TILE_COURT_T_MARK, court_pal);
     graphics_set_bg2_tile(14, 13, TILE_COURT_T_MARK, court_pal);
 
-    // Slanted Sidelines
-    // Left Sideline
-    graphics_set_bg2_tile(9, 4, TILE_COURT_CORNER_TL, court_pal);
-    graphics_set_bg2_tile(9, 5, TILE_COURT_LINE_SL_L, court_pal);
-    graphics_set_bg2_tile(8, 6, TILE_COURT_LINE_SL_L, court_pal);
-    graphics_set_bg2_tile(8, 7, TILE_COURT_LINE_SL_L, court_pal);
-    graphics_set_bg2_tile(8, 8, TILE_COURT_LINE_SL_L, court_pal);
-    graphics_set_bg2_tile(7, 9, TILE_COURT_LINE_SL_L, court_pal);
-    graphics_set_bg2_tile(7, 10, TILE_COURT_LINE_SL_L, court_pal);
-    graphics_set_bg2_tile(7, 11, TILE_COURT_LINE_SL_L, court_pal);
-    graphics_set_bg2_tile(6, 12, TILE_COURT_LINE_SL_L, court_pal);
-    graphics_set_bg2_tile(6, 13, TILE_COURT_LINE_SL_L, court_pal);
-    graphics_set_bg2_tile(6, 14, TILE_COURT_LINE_SL_L, court_pal);
-    graphics_set_bg2_tile(5, 15, TILE_COURT_LINE_SL_L, court_pal);
-    graphics_set_bg2_tile(5, 16, TILE_COURT_LINE_SL_L, court_pal);
-    graphics_set_bg2_tile(5, 17, TILE_COURT_CORNER_BL, court_pal);
+    // =========================================================================
+    // Continuous Perspective Sidelines (Mathematically aligned, zero sawteeth)
+    // =========================================================================
+    // Left Sideline:
+    graphics_set_bg2_tile(8, 5,  TILE_COURT_SL_L_TOP, court_pal);
+    graphics_set_bg2_tile(8, 6,  TILE_COURT_SL_L_MID, court_pal);
+    graphics_set_bg2_tile(8, 7,  TILE_COURT_SL_L_BOT, court_pal);
+    graphics_set_bg2_tile(7, 8,  TILE_COURT_SL_L_TOP, court_pal);
+    graphics_set_bg2_tile(7, 9,  TILE_COURT_SL_L_MID, court_pal);
+    graphics_set_bg2_tile(7, 10, TILE_COURT_SL_L_BOT, court_pal);
+    graphics_set_bg2_tile(6, 11, TILE_COURT_SL_L_TOP, court_pal);
+    graphics_set_bg2_tile(6, 12, TILE_COURT_SL_L_MID, court_pal);
+    graphics_set_bg2_tile(6, 13, TILE_COURT_SL_L_BOT, court_pal);
+    graphics_set_bg2_tile(5, 14, TILE_COURT_SL_L_TOP, court_pal);
+    graphics_set_bg2_tile(5, 15, TILE_COURT_SL_L_MID, court_pal);
+    graphics_set_bg2_tile(5, 16, TILE_COURT_SL_L_BOT, court_pal);
 
-    // Right Sideline
-    graphics_set_bg2_tile(20, 4, TILE_COURT_CORNER_TR, court_pal);
-    graphics_set_bg2_tile(20, 5, TILE_COURT_LINE_SL_R, court_pal);
-    graphics_set_bg2_tile(21, 6, TILE_COURT_LINE_SL_R, court_pal);
-    graphics_set_bg2_tile(21, 7, TILE_COURT_LINE_SL_R, court_pal);
-    graphics_set_bg2_tile(21, 8, TILE_COURT_LINE_SL_R, court_pal);
-    graphics_set_bg2_tile(22, 9, TILE_COURT_LINE_SL_R, court_pal);
-    graphics_set_bg2_tile(22, 10, TILE_COURT_LINE_SL_R, court_pal);
-    graphics_set_bg2_tile(22, 11, TILE_COURT_LINE_SL_R, court_pal);
-    graphics_set_bg2_tile(23, 12, TILE_COURT_LINE_SL_R, court_pal);
-    graphics_set_bg2_tile(23, 13, TILE_COURT_LINE_SL_R, court_pal);
-    graphics_set_bg2_tile(23, 14, TILE_COURT_LINE_SL_R, court_pal);
-    graphics_set_bg2_tile(24, 15, TILE_COURT_LINE_SL_R, court_pal);
-    graphics_set_bg2_tile(24, 16, TILE_COURT_LINE_SL_R, court_pal);
-    graphics_set_bg2_tile(24, 17, TILE_COURT_CORNER_BR, court_pal);
+    // Right Sideline:
+    graphics_set_bg2_tile(21, 5,  TILE_COURT_SL_R_TOP, court_pal);
+    graphics_set_bg2_tile(21, 6,  TILE_COURT_SL_R_MID, court_pal);
+    graphics_set_bg2_tile(21, 7,  TILE_COURT_SL_R_BOT, court_pal);
+    graphics_set_bg2_tile(22, 8,  TILE_COURT_SL_R_TOP, court_pal);
+    graphics_set_bg2_tile(22, 9,  TILE_COURT_SL_R_MID, court_pal);
+    graphics_set_bg2_tile(22, 10, TILE_COURT_SL_R_BOT, court_pal);
+    graphics_set_bg2_tile(23, 11, TILE_COURT_SL_R_TOP, court_pal);
+    graphics_set_bg2_tile(23, 12, TILE_COURT_SL_R_MID, court_pal);
+    graphics_set_bg2_tile(23, 13, TILE_COURT_SL_R_BOT, court_pal);
+    graphics_set_bg2_tile(24, 14, TILE_COURT_SL_R_TOP, court_pal);
+    graphics_set_bg2_tile(24, 15, TILE_COURT_SL_R_MID, court_pal);
+    graphics_set_bg2_tile(24, 16, TILE_COURT_SL_R_BOT, court_pal);
+}
+
+void graphics_animate_crowd(u32 frame, bool cheering) {
+    u32 rate = cheering ? 12 : 24;
+    if ((frame % rate) != 0) return;
+
+    u8 phase = (u8)((frame / rate) & 1);
+
+    // Animate top crowd in rows 1..2
+    u16 tc0 = phase ? TILE_CROWD_1 : TILE_CROWD_0;
+    u16 tc1 = phase ? TILE_CROWD_0 : TILE_CROWD_1;
+    for (u8 y = 1; y < 3; y++) {
+        for (u8 x = 0; x < 30; x++) {
+            u16 tile = ((x + y) & 1) ? tc0 : tc1;
+            graphics_set_bg1_tile(x, y, tile, PAL_BG_STADIUM);
+        }
+    }
+
+    // Animate side crowd in rows 4..19
+    u16 lc = phase ? TILE_CROWD_SIDE_L1 : TILE_CROWD_SIDE_L0;
+    u16 rc = phase ? TILE_CROWD_SIDE_R1 : TILE_CROWD_SIDE_R0;
+    for (u8 y = 4; y < 20; y++) {
+        for (u8 x = 0; x < 3; x++) {
+            graphics_set_bg1_tile(x, y, lc, PAL_BG_STADIUM);
+        }
+        for (u8 x = 27; x < 30; x++) {
+            graphics_set_bg1_tile(x, y, rc, PAL_BG_STADIUM);
+        }
+    }
 }
 
 void graphics_print_text(u8 x, u8 y, const char* str, u8 pal) {

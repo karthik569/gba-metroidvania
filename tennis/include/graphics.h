@@ -31,6 +31,7 @@ void graphics_clear_bg2(void);
 
 // Court & Stadium Renderers
 void graphics_render_court(CourtSurface surface);
+void graphics_animate_crowd(u32 frame, bool cheering);
 
 // Text & HUD helpers
 void graphics_print_text(u8 x, u8 y, const char* str, u8 pal);

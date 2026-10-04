@@ -69,6 +69,21 @@ extern "C" {
 #define TILE_COURT_CORNER_BR    78
 #define TILE_COURT_T_MARK       79
 
+// Continuous Perspective Sideline Tiles (Clean anti-aliased transitions)
+#define TILE_COURT_SL_L_TOP     80
+#define TILE_COURT_SL_L_MID     81
+#define TILE_COURT_SL_L_BOT     82
+#define TILE_COURT_SL_R_TOP     83
+#define TILE_COURT_SL_R_MID     84
+#define TILE_COURT_SL_R_BOT     85
+
+// Stadium Roof & Side Audience Stands
+#define TILE_STADIUM_ROOF       86
+#define TILE_CROWD_SIDE_L0      87
+#define TILE_CROWD_SIDE_L1      88
+#define TILE_CROWD_SIDE_R0      89
+#define TILE_CROWD_SIDE_R1      90
+
 // 16x16 Sprite Tile Indices (1D mapping: 4 8x8 tiles per 16x16 sprite)
 // Near Player
 #define SPRITE_PLAYER_READY_0       0   // 0..3
