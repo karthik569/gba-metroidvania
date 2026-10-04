@@ -10,18 +10,18 @@
 
 ---
 
-## 2. Controls & Shot Catalog
+## 2. Controls & Shot Catalog (Mario Tennis Mechanics)
 
 | Input Combination | Action / Shot Type | In-Game Dynamics & Tactical Use |
 | :--- | :--- | :--- |
 | **D-Pad** | Court Movement & Shot Aiming | Move across baseline and net; steer ball crosscourt or down-the-line during racket swings |
-| **A Button** | **Topspin Drive** | High forward velocity, deep aggressive bounce; primary weapon for baseline rallies |
-| **B Button** | **Slice / Backspin** | Lower velocity, curving skid bounce; disrupts opponent's timing, deadly on Grass |
-| **A + B Buttons** | **Defensive Lob** | High altitude parabolic arc ($Z \ge 60$); escapes corner pressure and lobs over net rushers |
-| **B then A** | **Drop Shot** | Soft touch dying just past the net cord; punishes opponents camping deep |
-| **High Ball + A** | **Overhead Smash** | Blazing downward spike ($V_y \ge 5$) with screen shake; instant winner on floaters |
-| **Serve Toss + A** | **Ace Serve** | Tap `A` to toss ball upward; tap `A` again at **peak altitude** for a 120–135 MPH power ace! |
-| **Start Button** | Pause Match | Pauses the match and displays current set/match status |
+| **Hold A** | **Topspin Drive (Charge)** | Charge power while moving; release / contact unleashes deep, fast baseline drive with Red/Yellow fire trail |
+| **Hold B** | **Slice / Backspin (Charge)** | Low-altitude skid bounce with Blue trail; disrupts opponent's timing, deadly on Grass |
+| **Hold A + B** | **Defensive Lob (Charge)** | High altitude parabolic arc ($Z \ge 60$); escapes corner pressure and punishes net rushers |
+| **Down + B** | **Drop Shot** | Soft touch dying just past the net cord; punishes opponents camping deep |
+| **High Ball + A** | **Overhead Smash** | Blazing 125 MPH downward spike with screen shake; instant winner on floaters |
+| **Serve Toss + A/B** | **Power Ace Serve** | Tap `A` or `B` to toss ball upward; strike at **peak altitude** ($Z \ge 26$) for a 125–135 MPH power ace! |
+| **Start / A Button** | Select / Advance | Advance through menus, service setups, and game over screens |
 
 ---
 

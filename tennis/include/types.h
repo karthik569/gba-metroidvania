@@ -37,9 +37,9 @@ typedef s32 fixed_t;
 // Court Geometry Constants (Screen Pixel Coordinates in Elevated Perspective)
 #define NET_Y               76
 #define BASELINE_NEAR_Y     140
-#define BASELINE_FAR_Y      24
+#define BASELINE_FAR_Y      36
 #define SERVICE_NEAR_Y      108
-#define SERVICE_FAR_Y       50
+#define SERVICE_FAR_Y       60
 
 // Court Surfaces
 typedef enum {
